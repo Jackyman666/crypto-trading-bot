@@ -20,10 +20,10 @@ if not all([BASE_URL, API_KEY]):
     raise ValueError("Missing required environment variables. Please check your .env file.")
 
 def get_price_data(
-        symbol: Literal["BTC","ETH","XRP","BNB","SOL","DOGE","TRX","ADA","XLM","WBTC","SUI","HBAR","LINK","BCH","WBETH","UNI","AVAX","SHIB","TON","LTC","DOT","PEPE","AAVE","ONDO","TAO","WLD","APT","NEAR","ARB","ICP","ETC","FIL","TRUMP","OP","ALGO","POL","BONK","ENA","ENS","VET","SEI","RENDER","FET","ATOM","VIRTUAL","SKY","BNSOL","RAY","TIA","JTO","JUP","QNT","FORM","INJ","STX"], 
-        interval: Literal["1d","1h","15m"], 
-        start: int | datetime, 
-        end: int | datetime
+    symbol: Literal["BTC","ETH","XRP","BNB","SOL","DOGE","TRX","ADA","XLM","WBTC","SUI","HBAR","LINK","BCH","WBETH","UNI","AVAX","SHIB","TON","LTC","DOT","PEPE","AAVE","ONDO","TAO","WLD","APT","NEAR","ARB","ICP","ETC","FIL","TRUMP","OP","ALGO","POL","BONK","ENA","ENS","VET","SEI","RENDER","FET","ATOM","VIRTUAL","SKY","BNSOL","RAY","TIA","JTO","JUP","QNT","FORM","INJ","STX"], 
+    interval: Literal["1d","1h","15m"], 
+    start: int | datetime, 
+    end: int | datetime
 ) -> pd.DataFrame:
     try:
         payload = {
@@ -53,6 +53,6 @@ def get_price_data(
 if __name__ == "__main__":
     symbols = ["BTC","ETH","XRP","BNB","SOL","DOGE","TRX","ADA","XLM","WBTC","SUI","HBAR","LINK","BCH","WBETH","UNI","AVAX","SHIB","TON","LTC","DOT","PEPE","AAVE","ONDO","TAO","WLD","APT","NEAR","ARB","ICP","ETC","FIL","TRUMP","OP","ALGO","POL","BONK","ENA","ENS","VET","SEI","RENDER","FET","ATOM","VIRTUAL","SKY","BNSOL","RAY","TIA","JTO","JUP","QNT","FORM","INJ","STX"]
     for symbol in tqdm(symbols):
-        interval = "1d"
+        interval = "1h"
         df = get_price_data(symbol, interval, datetime(2020,1,1), datetime.today())
-        df.to_csv(f"data/{symbol}_{interval}.csv")
+        #df.to_csv(f"data/{symbol}_{interval}.csv")
