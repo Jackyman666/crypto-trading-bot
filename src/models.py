@@ -34,8 +34,7 @@ class PivotPoint:
         timestamp: when the pivot occurred (UTC-naive or timezone-aware)
         price: price value at pivot
         type: 'high' | 'low'
-        index: optional integer index into the source series
-        strength: optional score for how strong the pivot is
+
     """
     timestamp: datetime
     price: float
@@ -63,11 +62,15 @@ class Opportunity:
 
 	The line is represented as: price = slope * t + intercept
 	where t is a float unix timestamp. Use `price_at(dt)` to evaluate.
+	If today is bullish, pivot_low = -1 (the pivot_low is minimum)
+	If today is bearish, pivot_high = -1 (the pivot_high is maximum)
 	"""
 
 	support_line: float
 	minimum: float
- 
+	maximum: float
+	pivot_low: float
+	pivot_high: float
 	start: Optional[datetime] = None
 	end: Optional[datetime] = None
 	pivots: List[PivotPoint] = field(default_factory=list)

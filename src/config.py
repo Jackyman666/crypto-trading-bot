@@ -1,0 +1,1 @@
+SUPPORT_LINE_TIMEFRAME = 15  # minutes
