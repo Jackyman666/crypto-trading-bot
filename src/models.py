@@ -38,7 +38,9 @@ class PivotPoint:
     """
     timestamp: datetime
     price: float
+    position: int
     type: Literal["high", "low"]
+    is_supported: Optional[bool] = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
