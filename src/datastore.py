@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import csv
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 from .models import Opportunity, PivotPoint
+from .utils import to_milliseconds
 
 
 def _ensure_parent(path: Path) -> None:
@@ -23,34 +23,6 @@ def _ensure_parent(path: Path) -> None:
 
     if not path.parent.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-
-
-def _coerce_timestamp(value) -> Optional[int]:
-    """Convert assorted timestamp representations to epoch seconds."""
-
-    if value is None:
-        return None
-
-    try:
-        ts = int(float(value))
-        return ts if ts > 0 else None
-    except (TypeError, ValueError):
-        text = str(value).strip()
-        if not text:
-            return None
-        if text.endswith("Z"):
-            text = text[:-1] + "+00:00"
-        try:
-            dt = datetime.fromisoformat(text)
-        except ValueError:
-            return None
-        return int(dt.timestamp()) if dt.timestamp() > 0 else None
-
-
-# def _to_datetime(seconds: int) -> datetime:
-#     """Return a UTC datetime from epoch seconds."""
-
-#     return datetime.fromtimestamp(int(seconds), tz=timezone.utc)
 
 
 class SQLiteDataStore:
@@ -143,7 +115,7 @@ class SQLiteDataStore:
         with csv_path.open("r", newline="") as handle, self._connect() as conn:
             reader = csv.DictReader(handle)
             for row in reader:
-                timestamp = _coerce_timestamp(row.get("timestamp"))
+                timestamp = to_milliseconds(row.get("timestamp"))
                 if timestamp is None:
                     continue
 
@@ -186,13 +158,13 @@ class SQLiteDataStore:
         params: List[object] = [coin]
 
         if since is not None:
-            since_ts = _coerce_timestamp(since)
+            since_ts = to_milliseconds(since)
             if since_ts is not None:
                 clauses.append("timestamp >= ?")
                 params.append(since_ts)
 
         if until is not None:
-            until_ts = _coerce_timestamp(until)
+            until_ts = to_milliseconds(until)
             if until_ts is not None:
                 clauses.append("timestamp <= ?")
                 params.append(until_ts)
@@ -227,15 +199,17 @@ class SQLiteDataStore:
         clauses = ["coin = ?"]
         params: List[object] = [coin]
 
-        since_ts = _coerce_timestamp(since)
-        if since_ts is not None:
-            clauses.append("timestamp >= ?")
-            params.append(since_ts)
+        if since is not None:
+            since_ts = to_milliseconds(since)
+            if since_ts is not None:
+                clauses.append("timestamp >= ?")
+                params.append(since_ts)
 
-        until_ts = _coerce_timestamp(until)
-        if until_ts is not None:
-            clauses.append("timestamp <= ?")
-            params.append(until_ts)
+        if until is not None:
+            until_ts = to_milliseconds(until)
+            if until_ts is not None:
+                clauses.append("timestamp <= ?")
+                params.append(until_ts)
 
         query = (
             "SELECT timestamp, price, pivot_type, is_supported FROM pivots WHERE "
@@ -278,15 +252,17 @@ class SQLiteDataStore:
         clauses = ["coin = ?"]
         params: List[object] = [coin]
 
-        since_ts = _coerce_timestamp(since)
-        if since_ts is not None:
-            clauses.append("(start_time IS NULL OR start_time >= ?)")
-            params.append(since_ts)
+        if since is not None:
+            since_ts = to_milliseconds(since)
+            if since_ts is not None:
+                clauses.append("(start_time IS NULL OR start_time >= ?)")
+                params.append(since_ts)
 
-        until_ts = _coerce_timestamp(until)
-        if until_ts is not None:
-            clauses.append("(end_time IS NULL OR end_time <= ?)")
-            params.append(until_ts)
+        if until is not None:
+            until_ts = to_milliseconds(until)
+            if until_ts is not None:
+                clauses.append("(end_time IS NULL OR end_time <= ?)")
+                params.append(until_ts)
 
         query_parts = [
             "SELECT support_line, minimum, maximum, pivot_low, pivot_high, start_time, end_time"
@@ -343,7 +319,7 @@ class SQLiteDataStore:
             except (TypeError, ValueError):
                 continue
 
-            timestamp = _coerce_timestamp(ts_raw)
+            timestamp = to_milliseconds(ts_raw)
             if timestamp is None:
                 continue
 
@@ -381,7 +357,7 @@ class SQLiteDataStore:
     def insert_pivot_point(self, coin: str, pivot: PivotPoint) -> bool:
         """Insert or update a single pivot point for ``coin``."""
 
-        timestamp = _coerce_timestamp(getattr(pivot, "timestamp", None))
+        timestamp = to_milliseconds(getattr(pivot, "timestamp", None))
         if timestamp is None:
             return False
 
@@ -420,8 +396,8 @@ class SQLiteDataStore:
         except (TypeError, ValueError):
             return None
 
-        start_ts = _coerce_timestamp(getattr(opportunity, "start", None))
-        end_ts = _coerce_timestamp(getattr(opportunity, "end", None))
+        start_ts = to_milliseconds(getattr(opportunity, "start", None))
+        end_ts = to_milliseconds(getattr(opportunity, "end", None))
 
         sql = (
             "INSERT INTO opportunities "

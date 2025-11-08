@@ -1,35 +1,61 @@
+from __future__ import annotations
+from datetime import datetime
+
+import pandas as pd
 from .utils import (
     update_pivots,
+    update_support_resistance,
     check_trend_conditions,
+    to_milliseconds,
 )
+from .config import TRADING_FREQUENCY_MS
 from .datastore import SQLiteDataStore
+from .binance import BinanceClient
+
+MILLIS_IN_MINUTE = 60_000
+MILLIS_IN_DAY = 24 * 60 * MILLIS_IN_MINUTE
 
 
 def findSignal(coin: str, executeTime: int):
     db = SQLiteDataStore()
     db.initialize()
-    pivots = db.fetch_pivots(coin, since=executeTime - 7 * 24 * 60 * 60, until=executeTime)
+    datasource = BinanceClient()
+    execute_ms = to_milliseconds(executeTime)
+    if execute_ms is None:
+        raise ValueError("Execution time must be numeric and positive")
+
+    pivots = db.fetch_pivots(
+        coin,
+        since=execute_ms - 7 * MILLIS_IN_DAY,
+        until=execute_ms,
+    )
     opportunities = db.fetch_opportunities(
         coin,
-        since=executeTime - 7 * 24 * 60 * 60,
-        until=executeTime,
+        since=execute_ms - 7 * MILLIS_IN_DAY,
+        until=execute_ms,
     )
 
-    btc_data = db.fetch_ohlcv(
-        "BTC",
-        since=executeTime - 15 * 50 * 60,
-        until=executeTime,
+    interval = "15m"
+
+    btc_start_ms = execute_ms - TRADING_FREQUENCY_MS * 50
+    btc_data = datasource.get_historical_klines(
+        symbol="BTCUSDT",
+        interval=interval,
+        start_time=btc_start_ms,
+        end_time=execute_ms,
         limit=50,
-        descending=False,
     )
-    coin_data = db.fetch_ohlcv(
-        coin,
-        since=executeTime - 15 * 5 * 60,
-        until=executeTime,
-        limit=5,
-        descending=False,
+
+    coin_symbol = f"{coin.upper()}USDT"
+    coin_start_ms = execute_ms - TRADING_FREQUENCY_MS * 25
+    coin_data = datasource.get_historical_klines(
+        symbol=coin_symbol,
+        interval=interval,
+        start_time=coin_start_ms,
+        end_time=execute_ms,
+        limit=25,
     )
-    print(btc_data)
+
     trend = "volatile"
     match check_trend_conditions(btc_data):
         case "bullish":
@@ -45,24 +71,23 @@ def findSignal(coin: str, executeTime: int):
             return
         case _:
             return "error"
-    
-    if trend != "volatile":
-        match update_pivots(coin_data, pivots):
-            case "high":
-                # Handle high pivot
-                pass
-            case "low":
-                # Handle low pivot
-                pass
-            case "both":
-                # Handle both pivots
-                pass
-            case "none":
-                # Handle no pivot
-                pass
-            case _:
-                return "error"
+        
+    print("Trend detected:", trend)
 
+    if trend != "volatile":
+        update_pivots(coin_data, pivots)
+        update_support_resistance(pivots, opportunities)
+    
+    print(f"btc_data length: {len(btc_data)}")
+    print("btc_data details:")
+    print(btc_data)
+    print(f"coin_data length: {len(coin_data)}")
+    print("coin_data details:")
+    print(coin_data)
+    print(f"Total pivots for {coin}: {len(pivots)}")
+    print(f"Pivot details: {pivots}")
+    print(f"Total opportunities for {coin}: {len(opportunities)}")
+    print(f"Opportunity details: {opportunities}")
     # ticker = roostoo.get_ticker("BTC/USD")
     # print("BTC data length:", len(btc_data))
     # print("Ticker sample:", ticker)
@@ -70,5 +95,8 @@ def findSignal(coin: str, executeTime: int):
     # balance = roostoo.get_balance()
     # print("Balance:", balance)
 
-
-findSignal("BTC", 1762526700)
+current_time = datetime.now()
+print("Current time:", current_time)
+current_time_ms = to_milliseconds(current_time)
+print("Current time in ms:", current_time_ms)
+findSignal("DOGE", current_time_ms)
