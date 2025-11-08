@@ -39,6 +39,7 @@ class PivotPoint:
     timestamp: datetime
     price: float
     type: Literal["high", "low"]
+    is_supported: Optional[bool] = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -73,4 +74,3 @@ class Opportunity:
 	pivot_high: float
 	start: Optional[datetime] = None
 	end: Optional[datetime] = None
-	pivots: List[PivotPoint] = field(default_factory=list)
