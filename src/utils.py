@@ -2,15 +2,19 @@ from .models import PivotPoint, Opportunity
 from .config import PIVOT_POINT_COMPARE, PIVOT_POINT_INTERVAL_MIN, MAXIMUM_PERCENTAGE_DIFFERENCE, MINIMUM_BREAKTHROUGH_PERCENTAGE, SUPPORT_LINE_TIMEFRAME
 
 
-def check_trend_conditions() -> bool:
-    """Check if the trend SMA20>SMA50 on BIN or ETH occur"""
+def check_trend_conditions(data: list) -> str:
+    """
+    input data: list of OHLCV data points (timestamp, open, high, low, close, volume)
+    return "bullish" | ""bearish" | "volatile" based on trend analysis"""
 
-    return True
+    return "volatile"
 
-def check_pivot_conditions() -> bool:
-    """Check if pivot points are"""
+def check_pivot_conditions(data: list) -> str:
+    """
+    input data: list of OHLCV data points (timestamp, open, high, low, close, volume)
+    return high | low | both | none based on pivot point analysis"""
 
-    return True
+    return "none"
 
 def check_support_line_conditions(pivot_1: PivotPoint, pivot_2: PivotPoint) -> bool:
     """Check if price is bouncing off support line"""

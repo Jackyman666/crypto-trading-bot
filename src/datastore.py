@@ -13,7 +13,7 @@ import csv
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from .models import Opportunity, PivotPoint
 
@@ -47,10 +47,10 @@ def _coerce_timestamp(value) -> Optional[int]:
         return int(dt.timestamp()) if dt.timestamp() > 0 else None
 
 
-def _to_datetime(seconds: int) -> datetime:
-    """Return a UTC datetime from epoch seconds."""
+# def _to_datetime(seconds: int) -> datetime:
+#     """Return a UTC datetime from epoch seconds."""
 
-    return datetime.fromtimestamp(int(seconds), tz=timezone.utc)
+#     return datetime.fromtimestamp(int(seconds), tz=timezone.utc)
 
 
 class SQLiteDataStore:
@@ -87,6 +87,7 @@ class SQLiteDataStore:
             timestamp INTEGER NOT NULL,
             price REAL NOT NULL,
             pivot_type TEXT NOT NULL CHECK (pivot_type IN ('high', 'low')),
+            is_supported INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
             PRIMARY KEY (coin, timestamp, pivot_type)
         );
@@ -107,6 +108,13 @@ class SQLiteDataStore:
 
         with self._connect() as conn:
             conn.executescript(schema)
+            try:
+                conn.execute(
+                    "ALTER TABLE pivots ADD COLUMN is_supported INTEGER NOT NULL DEFAULT 0"
+                )
+            except sqlite3.OperationalError:
+                # Column already exists; ignore error.
+                pass
 
     def ingest_csv(self, coin: str, csv_path: str | Path, *, batch_size: int = 1000) -> int:
         """Load OHLCV rows from a CSV file into the database.
@@ -230,7 +238,7 @@ class SQLiteDataStore:
             params.append(until_ts)
 
         query = (
-            "SELECT timestamp, price, pivot_type FROM pivots WHERE "
+            "SELECT timestamp, price, pivot_type, is_supported FROM pivots WHERE "
             + " AND ".join(clauses)
             + " ORDER BY timestamp ASC"
         )
@@ -239,10 +247,23 @@ class SQLiteDataStore:
             cursor = conn.execute(query, params)
             rows = cursor.fetchall()
 
-        return [
-            PivotPoint(timestamp=int(row[0]), price=row[1], type=row[2])
-            for row in rows
-        ]
+        pivots: List[PivotPoint] = []
+        for row in rows:
+            timestamp = datetime.fromtimestamp(int(row[0]))
+            price = row[1]
+            pivot_type = row[2]
+            is_supported = bool(row[3])
+            pivots.append(
+                PivotPoint(
+                    timestamp=timestamp,
+                    price=price,
+                    position=0,
+                    type=pivot_type,
+                    is_supported=is_supported,
+                )
+            )
+
+        return pivots
 
     def fetch_opportunities(
         self,
@@ -301,3 +322,125 @@ class SQLiteDataStore:
             )
 
         return opportunities
+
+    def upsert_ohlcv_rows(
+        self,
+        coin: str,
+        rows: Iterable[Tuple[object, object, object, object, object, object]],
+    ) -> int:
+        """Insert or update OHLCV rows provided at runtime.
+
+        Each row should contain ``(timestamp, open, high, low, close, volume)``.
+        Timestamps may be epoch integers, floats, or ISO-8601 strings.
+        Returns the number of rows written.
+        """
+
+        payload: List[Tuple[str, int, float, float, float, float, float]] = []
+
+        for entry in rows:
+            try:
+                ts_raw, open_, high, low, close, volume = entry
+            except (TypeError, ValueError):
+                continue
+
+            timestamp = _coerce_timestamp(ts_raw)
+            if timestamp is None:
+                continue
+
+            try:
+                payload.append(
+                    (
+                        coin,
+                        timestamp,
+                        float(open_),
+                        float(high),
+                        float(low),
+                        float(close),
+                        float(volume),
+                    )
+                )
+            except (TypeError, ValueError):
+                continue
+
+        if not payload:
+            return 0
+
+        insert_sql = (
+            "INSERT INTO ohlcv (coin, timestamp, open, high, low, close, volume) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(coin, timestamp) DO UPDATE SET "
+            "open=excluded.open, high=excluded.high, low=excluded.low, "
+            "close=excluded.close, volume=excluded.volume"
+        )
+
+        with self._connect() as conn:
+            conn.executemany(insert_sql, payload)
+
+        return len(payload)
+
+    def insert_pivot_point(self, coin: str, pivot: PivotPoint) -> bool:
+        """Insert or update a single pivot point for ``coin``."""
+
+        timestamp = _coerce_timestamp(getattr(pivot, "timestamp", None))
+        if timestamp is None:
+            return False
+
+        try:
+            price = float(pivot.price)
+        except (TypeError, ValueError):
+            return False
+
+        pivot_type = getattr(pivot, "type", None)
+        if pivot_type not in {"high", "low"}:
+            return False
+
+        is_supported = int(bool(getattr(pivot, "is_supported", False)))
+
+        sql = (
+            "INSERT INTO pivots (coin, timestamp, price, pivot_type, is_supported) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(coin, timestamp, pivot_type) DO UPDATE SET "
+            "price=excluded.price, is_supported=excluded.is_supported"
+        )
+
+        with self._connect() as conn:
+            conn.execute(sql, (coin, timestamp, price, pivot_type, is_supported))
+
+        return True
+
+    def insert_opportunity(self, coin: str, opportunity: Opportunity) -> Optional[int]:
+        """Insert a single opportunity row and return its database id."""
+
+        try:
+            support_line = float(opportunity.support_line)
+            minimum = float(opportunity.minimum)
+            maximum = float(opportunity.maximum)
+            pivot_low = float(opportunity.pivot_low)
+            pivot_high = float(opportunity.pivot_high)
+        except (TypeError, ValueError):
+            return None
+
+        start_ts = _coerce_timestamp(getattr(opportunity, "start", None))
+        end_ts = _coerce_timestamp(getattr(opportunity, "end", None))
+
+        sql = (
+            "INSERT INTO opportunities "
+            "(coin, support_line, minimum, maximum, pivot_low, pivot_high, start_time, end_time) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+
+        with self._connect() as conn:
+            cursor = conn.execute(
+                sql,
+                (
+                    coin,
+                    support_line,
+                    minimum,
+                    maximum,
+                    pivot_low,
+                    pivot_high,
+                    start_ts,
+                    end_ts,
+                ),
+            )
+            return cursor.lastrowid
