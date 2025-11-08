@@ -47,6 +47,12 @@ def _coerce_timestamp(value) -> Optional[int]:
         return int(dt.timestamp()) if dt.timestamp() > 0 else None
 
 
+def _to_datetime(seconds: int) -> datetime:
+    """Return a UTC datetime from epoch seconds."""
+
+    return datetime.fromtimestamp(int(seconds), tz=timezone.utc)
+
+
 class SQLiteDataStore:
     """Very small wrapper around sqlite3 connections."""
 
