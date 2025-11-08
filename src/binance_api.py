@@ -1,124 +1,133 @@
-from dotenv import load_dotenv
-from typing import Literal
-import requests
-import hashlib
-import hmac
-import time
+from __future__ import annotations
+
 import os
-import pandas as pd
-import numpy as np
 from datetime import datetime
-import io
-from tqdm import tqdm
-from datetime import datetime,timedelta
-from binance.client import Client
-from binance.enums import HistoricalKlinesType
-from multiprocessing import Pool
-from functools import partial
+from typing import Optional, Dict, Any, List
 
-load_dotenv()
+import pandas as pd
+import requests
+from dotenv import load_dotenv
 
-def parse_symbol(
-    symbol: Literal["BTC","ETH","XRP","BNB","SOL","DOGE","TRX","ADA","XLM","WBTC","SUI","HBAR","LINK","BCH","WBETH","UNI","AVAX","SHIB","TON","LTC","DOT","PEPE","AAVE","ONDO","TAO","WLD","APT","NEAR","ARB","ICP","ETC","FIL","TRUMP","OP","ALGO","POL","BONK","ENA","ENS","VET","SEI","RENDER","FET","ATOM","VIRTUAL","SKY","BNSOL","RAY","TIA","JTO","JUP","QNT","FORM","INJ","STX"]
-) -> str:
-    symbol = symbol+"USDT"
-    return symbol
 
-def to_timedelta(
-    interval: Literal["1d","1h","1m","5m","15m","30m"], 
-) -> timedelta:
-    if interval == '1d':
-        return timedelta(days=1)
-    elif interval == '1h':
-        return timedelta(hours=1)
-    elif interval == '1m':
-        return timedelta(minutes=1)
-    elif interval == '5m':
-        return timedelta(minutes=5)
-    elif interval == '15m':
-        return timedelta(minutes=15)
-    elif interval == '30m':
-        return timedelta(minutes=30)
+class BinanceClient:
+    """API client for Binance exchange with focus on historical data."""
 
-def time_chunk(
-    start: datetime,
-    end: datetime,
-    interval: Literal["1d","1h","1m","5m","15m","30m"], 
-    limit: int = 1000,
-    buffer: int = 50
-) -> list:
-    sep = to_timedelta(interval) * (limit-buffer)
-    dt_rng = pd.date_range(
-        start = start,
-        end = end,
-        freq = sep
-    )
-    start_end = pd.DataFrame({
-        'start': dt_rng,
-        'end': dt_rng.shift(1)
-    }).dropna()
-    start_end.iloc[-1,1] = min(end,start_end.iloc[-1,1])
-    start_end = [(start.to_pydatetime(),end.to_pydatetime()) for start,end in start_end.itertuples(index=False)]
-    return start_end
+    # API Endpoints
+    BASE_URL = "https://api.binance.com"
+    KLINES_PATH = "/api/v3/klines"
+    EXCHANGE_INFO_PATH = "/api/v3/exchangeInfo"
+    TICKER_PATH = "/api/v3/ticker/24hr"
 
-def download_bars(start_end,ohlcv_only,**kwargs):
-    start,end = start_end
-    client = Client()
-    res = client.get_historical_klines(
-        start_str=str(start.timestamp()),
-        end_str=str(end.timestamp()),
-        **kwargs
-    )
-    if len(res) == 0:
-        arr = np.ndarray(shape=(1,12))
-    else:
-        arr = np.array(res)
-    if ohlcv_only:
-        arr = arr[:,:6]
-    return arr
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        session: Optional[requests.Session] = None,
+    ) -> None:
+        self.base_url = base_url or self.BASE_URL
+        self.session = session or requests.Session()
 
-def get_price_data(
-    symbol: Literal["BTC","ETH","XRP","BNB","SOL","DOGE","TRX","ADA","XLM","WBTC","SUI","HBAR","LINK","BCH","WBETH","UNI","AVAX","SHIB","TON","LTC","DOT","PEPE","AAVE","ONDO","TAO","WLD","APT","NEAR","ARB","ICP","ETC","FIL","TRUMP","OP","ALGO","POL","BONK","ENA","ENS","VET","SEI","RENDER","FET","ATOM","VIRTUAL","SKY","BNSOL","RAY","TIA","JTO","JUP","QNT","FORM","INJ","STX"], 
-    interval: Literal["1d","1h","1m","5m","15m","30m"], 
-    start: datetime, 
-    end: datetime,
-    ohlcv_only: bool = False,
-) -> pd.DataFrame:
-    symbol = parse_symbol(symbol)
-    limit = 1000
-    buffer = 50
-    chunks = time_chunk(start,end,interval,limit=limit,buffer=buffer)
-    dl_bars_part = partial(
-        download_bars,
-        ohlcv_only=ohlcv_only,
-        symbol=symbol,
-        interval=interval,
-        limit=1000,
-        klines_type=HistoricalKlinesType.SPOT
-    )
-    try:
-        with Pool(min(len(chunks),25)) as p:
-            dfs = p.map(func=dl_bars_part,iterable=chunks)
-        if ohlcv_only: 
-            columns = ['timestamp','open','high','low','close','volume']
-        else:
-            columns = ['timestamp','open','high','low','close','volume','close_time','quote_volume','num_trades','buy_base_volume','buy_quote_volume','unused']
-        df = pd.DataFrame(
-            np.vstack(dfs),
-            columns=columns,
-        ).set_index('timestamp')
-        # Drop duplicated rows in buffers
-        df = df.loc[~df.index.duplicated(keep='first')]
-        return df
-    except Exception as e:
-        print(f"Error getting price data: {e}")
-        return pd.DataFrame()
-    
+    def _request(
+        self, 
+        method: str, 
+        path: str, 
+        params: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Make HTTP request to Binance API."""
+        url = f"{self.base_url}{path}"
+        
+        try:
+            response = self.session.request(
+                method=method,
+                url=url,
+                params=params
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as exc:
+            print(f"Error calling {path}: {exc}")
+            return None
+
+    def get_historical_klines(
+        self,
+        symbol: str,
+        interval: str,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 1000
+    ) -> pd.DataFrame:
+        """
+        Fetch historical klines/candlestick data.
+        
+        Args:
+            symbol: Trading pair (e.g., 'BTCUSDT')
+            interval: Kline interval ('1m','3m','5m','15m','30m','1h','2h','4h','6h','8h','12h','1d','3d','1w','1M')
+            start_time: Start datetime (optional)
+            end_time: End datetime (optional) 
+            limit: Number of klines to fetch (max 1000)
+            
+        Returns:
+            DataFrame with columns: timestamp, open, high, low, close, volume, etc.
+        """
+        params: Dict[str, Any] = {
+            "symbol": symbol.upper(),
+            "interval": interval,
+            "limit": limit
+        }
+
+        # Convert datetime to millisecond timestamps
+        if start_time:
+            params["startTime"] = int(start_time.timestamp() * 1000)
+        if end_time:
+            params["endTime"] = int(end_time.timestamp() * 1000)
+
+        result = self._request("GET", self.KLINES_PATH, params=params)
+        
+        if not result:
+            return pd.DataFrame()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(result, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+            'taker_buy_quote', 'ignore'
+        ])
+
+        # Convert types
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = df[col].astype(float)
+
+        return df.set_index('timestamp')
+
+    def get_exchange_info(self) -> Optional[Dict[str, Any]]:
+        """Get exchange trading rules and symbol information."""
+        return self._request("GET", self.EXCHANGE_INFO_PATH)
+
+    def get_ticker(self, symbol: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get 24hr ticker price change statistics."""
+        params = {}
+        if symbol:
+            params["symbol"] = symbol.upper()
+        return self._request("GET", self.TICKER_PATH, params=params)
+
+
 if __name__ == "__main__":
-    # symbols are from roostoo tradable universe
-    symbols = ["BTC","ETH","XRP","BNB","SOL","DOGE","TRX","ADA","XLM","WBTC","SUI","HBAR","LINK","BCH","WBETH","UNI","AVAX","SHIB","TON","LTC","DOT","PEPE","AAVE","ONDO","TAO","WLD","APT","NEAR","ARB","ICP","ETC","FIL","TRUMP","OP","ALGO","POL","BONK","ENA","ENS","VET","SEI","RENDER","FET","ATOM","VIRTUAL","SKY","BNSOL","RAY","TIA","JTO","JUP","QNT","FORM","INJ","STX"]
-    for symbol in tqdm(symbols):
-        # change the interval ["1d","1h","1m","5m","15m","30m"]
-        interval = "1h"
-        df = get_price_data(symbol, interval, datetime(2020,1,1), datetime.today(), ohlcv_only=True)
-        df.to_csv(f"data/{symbol}_{interval}.csv")
+    # Example usage
+    client = BinanceClient()
+    
+    # Get historical OHLCV data
+    df = client.get_historical_klines(
+        symbol="BTCUSDT",
+        interval="1h",
+        start_time=datetime(2023, 1, 1),
+        end_time=datetime(2023, 1, 2)
+    )
+    print("\nHistorical Data:")
+    print(df.head())
+    
+    # Get current ticker
+    ticker = client.get_ticker("BTCUSDT")
+    if ticker:
+        print("\nCurrent Ticker:")
+        print(f"Price: {ticker.get('lastPrice')}")
+        print(f"24h Change: {ticker.get('priceChangePercent')}%")

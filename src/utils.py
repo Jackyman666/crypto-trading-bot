@@ -53,15 +53,13 @@ def check_support_line_conditions(pivot_1: PivotPoint, pivot_2: PivotPoint) -> b
 def check_minimum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> bool:
     """Check if minimum conditions after breaking through support are met"""
         # require a low pivot
+
     if pivot.type != "low":
         return False
 
     # ensure timestamps fall inside opportunity window when provided
     if getattr(opportunity, "start", None) is not None and pivot.timestamp < opportunity.start:
         return False
-    if getattr(opportunity, "end", None) is not None and pivot.timestamp > opportunity.end:
-        return False
-
 
 
     # threshold: pivot must be lower than avg by the configured percentage
@@ -86,8 +84,7 @@ def check_maximum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> boo
     # ensure timestamps fall inside opportunity window when provided
     if getattr(opportunity, "start", None) is not None and pivot.timestamp < opportunity.start:
         return False
-    if getattr(opportunity, "end", None) is not None and pivot.timestamp > opportunity.end:
-        return False
+    
 
     # Check if price breaks above previous pivot high
     try:
