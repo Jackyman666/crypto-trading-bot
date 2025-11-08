@@ -1,1 +1,13 @@
-SUPPORT_LINE_TIMEFRAME = 15  # minutes
+# Configuration for Pivot Point Detection
+PIVOT_POINT_COMPARE = 2  # number of candles to compare front and back for pivot point detection
+PIVOT_POINT_INTERVAL_MIN = 1 # minimum interval between pivot points
+
+# Configuration for Support Line Detection
+MAXIMUM_PERCENTAGE_DIFFERENCE = 0.005  # maximum percentage difference between pivot points for support line detection
+MINIMUM_BREAKTHROUGH_PERCENTAGE = 0.002  # minimum percentage price breakthrough for pivot_2 to consider support line broken
+SUPPORT_LINE_TIMEFRAME = 20  # maximum number of candles after pivot_2 for a trade setup detection
+
+
+
+
+

@@ -38,6 +38,7 @@ class PivotPoint:
     """
     timestamp: datetime
     price: float
+    position: int
     type: Literal["high", "low"]
     is_supported: Optional[bool] = False
 
