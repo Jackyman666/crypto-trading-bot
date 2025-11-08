@@ -249,9 +249,9 @@ class SQLiteDataStore:
 
         pivots: List[PivotPoint] = []
         for row in rows:
-            timestamp = datetime.fromtimestamp(int(row[0]))
-            price = row[1]
-            pivot_type = row[2]
+            timestamp = int(row[0])
+            price = float(row[1])
+            pivot_type = str(row[2])
             is_supported = bool(row[3])
             pivots.append(
                 PivotPoint(
