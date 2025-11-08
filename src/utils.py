@@ -90,7 +90,7 @@ def check_maximum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> boo
     try:
         if opportunity.pivot_high is None or opportunity.pivot_high <= 0:
             return False
-        return pivot.price > opportunity.pivot_high
+        
     except Exception:
         return False
     
