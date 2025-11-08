@@ -112,18 +112,26 @@ class BinanceClient:
 
 
 if __name__ == "__main__":
-    # Example usage
-    client = BinanceClient()
+    from datetime import datetime, timedelta
+    import pytz
+
+    # Create UTC datetime explicitly
+    utc_now = datetime.now(pytz.UTC)                 # Current time in UTC
+    local_now = datetime.now()                       # Current time in your local timezone
     
-    # Get historical OHLCV data
+    print(f"UTC time: {utc_now}")
+    print(f"Local time: {local_now}")
+    
+    # Example with both
+    client = BinanceClient()
     df = client.get_historical_klines(
         symbol="BTCUSDT",
         interval="1h",
-        start_time=datetime(2023, 1, 1),
-        end_time=datetime(2023, 1, 2)
+        start_time=utc_now - timedelta(hours=24),    # Last 24h in UTC
+        end_time=utc_now
     )
     print("\nHistorical Data:")
-    print(df.head())
+    print(df)
     
     # Get current ticker
     ticker = client.get_ticker("BTCUSDT")

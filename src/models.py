@@ -75,3 +75,4 @@ class Opportunity:
 	pivot_high: float
 	start: Optional[datetime] = None
 	end: Optional[datetime] = None
+

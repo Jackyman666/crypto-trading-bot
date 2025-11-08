@@ -1,3 +1,6 @@
+# Configuration for Trend Detection
+VOLATIILE_THRESHOLD = 20  # time threshold for determining if the market is volatile
+
 # Configuration for Pivot Point Detection
 PIVOT_POINT_COMPARE = 2  # number of candles to compare front and back for pivot point detection
 PIVOT_POINT_INTERVAL_MIN = 1 # minimum interval between pivot points
