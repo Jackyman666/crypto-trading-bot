@@ -19,6 +19,8 @@ def fetch_binance_klines(symbol, interval, start, end):
     """
     Fetch OHLCV data from Binance and return as DataFrame with DatetimeIndex.
     """
+
+
     start_ms = to_ms(start)
     end_ms = to_ms(end)
     all_data = []
@@ -68,14 +70,10 @@ if __name__ == "__main__":
     os.makedirs("data", exist_ok=True)
 
         # Binance-compatible trading pairs (USDT-based)
-    symbols = ["BTCUSDT","ETHUSDT","XRPUSDT","BNBUSDT","SOLUSDT","DOGEUSDT","TRXUSDT","ADAUSDT","XLMUSDT",
-               "SUIUSDT","HBARUSDT","LINKUSDT","BCHUSDT","UNIUSDT","AVAXUSDT","SHIBUSDT","TONUSDT","LTCUSDT",
-               "DOTUSDT","PEPEUSDT","AAVEUSDT","ONDOUSDT","WLDUSDT","APTUSDT","NEARUSDT","ARBUSDT","ICPUSDT",
-               "ETCUSDT","FILUSDT","OPUSDT","ALGOUSDT","POLUSDT","BONKUSDT","ENAUSDT","ENSUSDT","VETUSDT",
-               "SEIUSDT","RENDERUSDT","FETUSDT","ATOMUSDT","INJUSDT","STXUSDT","TIAUSDT","JTOUSDT","JUPUSDT","QNTUSDT"]
+    symbols = ["BTCUSDT", "DOGEUSDT"]
     
     interval = "15m"   # "15m", "1h", or "1d"
-    start = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
     end   = datetime.now(timezone.utc)
 
     for s in tqdm(symbols):
@@ -84,7 +82,7 @@ if __name__ == "__main__":
             if df.empty:
                 print(f"{s}: no data returned.")
                 continue
-            df.to_csv(f"data/{s}_{interval}.csv")
+            df.to_csv(f"Data/{s}_{interval}.csv")
             print(f"{s}: saved {len(df)} rows.")
         except Exception as e:
             print(f"{s}: error {e}")

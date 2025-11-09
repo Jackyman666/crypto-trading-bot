@@ -180,6 +180,7 @@ def update_support_resistance(pivots: list[PivotPoint], opportunities: list[Oppo
     if len(pivots) < 2:
         return None
 
+    
     # Define both target types (support and resistance)
     target_types = ["low", "high"]
 
@@ -193,7 +194,11 @@ def update_support_resistance(pivots: list[PivotPoint], opportunities: list[Oppo
                 # Skip invalid or already used pivots
                 if pivots[j].type != target_type or pivots[j].price is None or pivots[j].is_supported:
                     continue
-
+                
+                # Skip non consecutive part
+                if any(pivots[k].type == target_type for k in range(i+1,j)):
+                    continue  
+                
                 # Check if pivots are within the timeframe limit
                 time_gap = abs(pivots[j].timestamp - pivots[i].timestamp)
                 if time_gap > SUPPORT_LINE_TIMEFRAME:
