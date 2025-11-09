@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Sequence
-
+from roostoo import RoostooClient
 import pandas as pd
 
 from .models import PivotPoint, Opportunity
@@ -11,7 +11,8 @@ from .config import (
     MINIMUM_BREAKTHROUGH_PERCENTAGE,
     PIVOT_POINT_COMPARE,
     SUPPORT_LINE_TIMEFRAME,
-    TRADING_FREQUENCY_MS
+    TRADING_FREQUENCY_MS,
+    SET_TRADE_QUANTITY
 )
 
 
@@ -179,55 +180,51 @@ def update_support_resistance(pivots: list[PivotPoint], opportunities: list[Oppo
     if len(pivots) < 2:
         return None
 
-    # Configuration values
-    tolerance_pct = abs(float(MAXIMUM_PERCENTAGE_DIFFERENCE))
-    timeframe_limit_ms = SUPPORT_LINE_TIMEFRAME
-
     # Define both target types (support and resistance)
     target_types = ["low", "high"]
 
     for target_type in target_types:
         for i in range(len(pivots) - 1):
-            pivot_1 = pivots[i]
             # Skip invalid or already used pivots
-            if pivot_1.type != target_type or pivot_1.price is None or pivot_1.is_supported:
+            if pivots[i].type != target_type or pivots[i].price is None or pivots[i].is_supported:
                 continue
 
             for j in range(i + 1, len(pivots)):
-                pivot_2 = pivots[j]
                 # Skip invalid or already used pivots
-                if pivot_2.type != target_type or pivot_2.price is None or pivot_2.is_supported:
+                if pivots[j].type != target_type or pivots[j].price is None or pivots[j].is_supported:
                     continue
 
                 # Check if pivots are within the timeframe limit
-                time_gap = abs(pivot_2.timestamp - pivot_1.timestamp)
-                if time_gap > timeframe_limit_ms:
+                time_gap = abs(pivots[j].timestamp - pivots[i].timestamp)
+                if time_gap > SUPPORT_LINE_TIMEFRAME:
                     break
 
                 # Check price difference tolerance
-                base_price = float(pivot_1.price)
+                base_price = float(pivots[i].price)
                 if base_price == 0:
                     continue
 
-                diff_pct = abs(pivot_2.price - pivot_1.price) / base_price
-                if diff_pct > tolerance_pct:
+                diff_pct = abs(pivots[j].price - pivots[i].price) / base_price
+                if diff_pct > MAXIMUM_PERCENTAGE_DIFFERENCE:
                     continue
 
                 # A valid support/resistance line is found
-                pivot_1.is_supported = True
-                pivot_2.is_supported = True
+                pivots[i].is_supported = True
+                pivots[j].is_supported = True
 
-                support_price = (pivot_1.price + pivot_2.price) / 2.0
+                support_price = (pivots[i].price + pivots[j].price) / 2.0
                 new_opportunity = Opportunity(
                     support_line=support_price,
                     minimum=0.0,
                     maximum=0.0,
-                    pivot_low=0.0,
-                    pivot_high=0.0,
-                    start=pivot_2.timestamp,
-                    end=None,
+                    relative_pivot=0.0,
+                    action="N/A",
+                    start=pivots[j].timestamp,
+                    end=pivots[j].timestamp + MAXIMUM_PERCENTAGE_DIFFERENCE,
                 )
                 opportunities.append(new_opportunity)
+
+
 
 def check_minimum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> bool:
     """Check if minimum conditions after breaking through support are met"""
@@ -266,7 +263,10 @@ def check_maximum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> boo
 
     # Check if price breaks above previous pivot high
     try:
-        if opportunity.pivot_high is None or opportunity.pivot_high <= 0:
+        # Use the new `relative_pivot` field which represents the pivot
+        # level used to determine breakouts. Require a positive value.
+        rp = float(getattr(opportunity, "relative_pivot", 0.0))
+        if rp <= 0:
             return False
         
     except Exception:
@@ -274,47 +274,87 @@ def check_maximum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> boo
     
     return True
 
-def check_trade_conditions(
-    data: pd.DataFrame | Sequence[Sequence[float]],
-    opportunity: Opportunity,
-) -> bool:
-    """Check if the fibonacci retracement levels are met."""
+def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunity], trend: str, roostoo_client: RoostooClient) -> None:
+    """
+    Determines whether a trade can be placed based on the trend, pivots, and opportunities.
 
-    if opportunity is None:
-        return False
+    Args:
+        pivots: List of PivotPoint objects.
+        opportunities: List of Opportunity objects to update.
+        trend: "bullish" or "bearish".
+        roostoo_client: Client object to interact with Roostoo for placing orders and retrieving balances.
+    """
+    if not pivots or not opportunities or trend not in ["bullish", "bearish"]:
+        return
 
-    if isinstance(data, pd.DataFrame):
-        df = data.copy()
-    else:
-        try:
-            df = pd.DataFrame(
-                data,
-                columns=["timestamp", "open", "high", "low", "close", "volume"],
-            )
-        except Exception:
-            return False
+    
+    for opportunity in opportunities:
+        if opportunity.action == "N/A" and trend == "bearish":
+            # Find the pivot low (relative_pivot)
+            pivot_low = next((p for p in pivots if p.type == "low" and p.price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE)), 0)
+            if not pivot_low:
+                continue
 
-    if df.empty or not {"low", "high"}.issubset(df.columns):
-        return False
+            opportunity.relative_pivot = pivot_low.price
 
-    df = df.sort_index()
-    last = df.iloc[-1]
+            # Find the maximum (pivot point higher than pivot low)
+            maximum = max((p.price for p in pivots if p.price > pivot_low.price), 0)
+            if not maximum:
+                continue
 
-    try:
-        pl1 = float(getattr(opportunity, "minimum"))
-        ph2 = float(getattr(opportunity, "maximum"))
-    except (TypeError, ValueError):
-        return False
+            opportunity.maximum = maximum
 
-    if not (ph2 > pl1):
-        return False
+            # Find the minimum (pivot point lower than support line)
+            minimum = min((p.price for p in pivots if p.price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE)), 0)
+            if not minimum:
+                continue
 
-    buy_price = pl1 + 0.618 * (ph2 - pl1)
+            opportunity.minimum = minimum
 
-    try:
-        low = float(last["low"])
-        high = float(last["high"])
-    except (TypeError, ValueError, KeyError):
-        return False
+        elif opportunity.action == "N/A" and trend == "bullish":
+            # Find the pivot high (relative_pivot)
+            pivot_high = next((p for p in pivots if p.type == "high" and p.price > opportunity.support_line * (1 + MINIMUM_BREAKTHROUGH_PERCENTAGE)), None)
+            if not pivot_high:
+                continue
 
-    return low <= buy_price <= high
+            opportunity.relative_pivot = pivot_high.price
+
+            # Find the minimum (pivot point lower than pivot high)
+            minimum = min((p.price for p in pivots if p.price < pivot_high.price), default=None)
+            if not minimum:
+                continue
+
+            opportunity.minimum = minimum
+
+            # Find the maximum (pivot point higher than support line)
+            maximum = max((p.price for p in pivots if p.price > opportunity.support_line * (1 + MINIMUM_BREAKTHROUGH_PERCENTAGE)), default=None)
+            if not maximum:
+                continue
+
+            opportunity.maximum = maximum
+
+
+        # Get balance and calculate order quantity
+        balance = roostoo_client.get_balance()
+        if not balance:
+            continue
+
+        usd_balance = balance.get("USD", {}).get("available", 0)
+        # Calculate the order price and quantity
+        order_price = opportunity.minimum + 0.61 * (opportunity.maximum - opportunity.minimum)
+        order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
+
+        # Place the order
+        action = "BUY" if trend == "bullish" else "SELL"
+        placed_order = roostoo_client.place_order(
+            coin=coin,  # Replace with the actual coin symbol
+            side=action,
+            qty=order_quantity,
+            price=order_price,
+            order_type="LIMIT",
+        )
+        
+        if placed_order:
+            opportunity.action = action
+        else:
+            opportunity.action = "N/A"

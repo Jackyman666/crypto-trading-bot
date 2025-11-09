@@ -45,7 +45,7 @@ class Opportunity:
     support_line: float
     minimum: float
     maximum: float
-    pivot_low: float
-    pivot_high: float
+    relative_pivot: float
+    action: str
     start: Optional[int] = None
     end: Optional[int] = None

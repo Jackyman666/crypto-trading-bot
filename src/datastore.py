@@ -41,7 +41,6 @@ class SQLiteDataStore:
 
     def initialize(self) -> None:
         """Create base tables if they do not already exist."""
-
         schema = """
         CREATE TABLE IF NOT EXISTS ohlcv (
             coin TEXT NOT NULL,
@@ -60,33 +59,32 @@ class SQLiteDataStore:
             price REAL NOT NULL,
             pivot_type TEXT NOT NULL CHECK (pivot_type IN ('high', 'low')),
             is_supported INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
             PRIMARY KEY (coin, timestamp, pivot_type)
         );
 
         CREATE TABLE IF NOT EXISTS opportunities (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
             coin TEXT NOT NULL,
             support_line REAL NOT NULL,
             minimum REAL NOT NULL,
             maximum REAL NOT NULL,
-            pivot_low REAL NOT NULL,
-            pivot_high REAL NOT NULL,
+            relative_pivot REAL NOT NULL,
+            action TEXT DEFAULT '',
             start_time INTEGER,
             end_time INTEGER,
-            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            PRIMARY KEY (coin, start_time, support_line)
         );
         """
 
         with self._connect() as conn:
-            conn.executescript(schema)
             try:
                 conn.execute(
-                    "ALTER TABLE pivots ADD COLUMN is_supported INTEGER NOT NULL DEFAULT 0"
+                    "DROP TABLE IF EXISTS pivots;"
                 )
+                conn.execute("DROP TABLE IF EXISTS opportunities;")
             except sqlite3.OperationalError:
                 # Column already exists; ignore error.
                 pass
+            conn.executescript(schema)
 
     def ingest_csv(self, coin: str, csv_path: str | Path, *, batch_size: int = 1000) -> int:
         """Load OHLCV rows from a CSV file into the database.
@@ -265,10 +263,10 @@ class SQLiteDataStore:
                 params.append(until_ts)
 
         query_parts = [
-            "SELECT support_line, minimum, maximum, pivot_low, pivot_high, start_time, end_time"
+            "SELECT support_line, minimum, maximum, relative_pivot, action, start_time, end_time"
             " FROM opportunities WHERE",
             " AND ".join(clauses),
-            "ORDER BY COALESCE(start_time, end_time, created_at) ASC",
+            "ORDER BY COALESCE(start_time, end_time) ASC",
         ]
 
         if limit is not None:
@@ -287,11 +285,11 @@ class SQLiteDataStore:
             end_dt = int(row[6]) if row[6] is not None else None
             opportunities.append(
                 Opportunity(
-                    support_line=row[0],
-                    minimum=row[1],
-                    maximum=row[2],
-                    pivot_low=row[3],
-                    pivot_high=row[4],
+                    support_line=float(row[0]),
+                    minimum=float(row[1]),
+                    maximum=float(row[2]),
+                    relative_pivot=float(row[3]),
+                    action=str(row[4]),
                     start=start_dt,
                     end=end_dt,
                 )
@@ -391,8 +389,8 @@ class SQLiteDataStore:
             support_line = float(opportunity.support_line)
             minimum = float(opportunity.minimum)
             maximum = float(opportunity.maximum)
-            pivot_low = float(opportunity.pivot_low)
-            pivot_high = float(opportunity.pivot_high)
+            relative_pivot = float(getattr(opportunity, "relative_pivot", 0.0))
+            action = str(getattr(opportunity, "action", ""))
         except (TypeError, ValueError):
             return None
 
@@ -401,7 +399,7 @@ class SQLiteDataStore:
 
         sql = (
             "INSERT INTO opportunities "
-            "(coin, support_line, minimum, maximum, pivot_low, pivot_high, start_time, end_time) "
+            "(coin, support_line, minimum, maximum, relative_pivot, action, start_time, end_time) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
 
@@ -413,8 +411,8 @@ class SQLiteDataStore:
                     support_line,
                     minimum,
                     maximum,
-                    pivot_low,
-                    pivot_high,
+                    relative_pivot,
+                    action,
                     start_ts,
                     end_ts,
                 ),
