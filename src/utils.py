@@ -5,7 +5,7 @@ from typing import Any
 from .roostoo import RoostooClient
 import pandas as pd
 
-from .models import PivotPoint, Opportunity
+from .models import PivotPoint, Opportunity, Trade
 from .config import (
     MAXIMUM_PERCENTAGE_DIFFERENCE,
     MINIMUM_BREAKTHROUGH_PERCENTAGE,
@@ -229,7 +229,7 @@ def update_support_resistance(pivots: list[PivotPoint], opportunities: list[Oppo
                 )
                 opportunities.append(new_opportunity)
 
-def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunity], trend: str) -> None:
+def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunity], trades: list[Trade], trend: str) -> None:
     """
     Determines whether a trade can be placed based on the trend, pivots, and opportunities.
 
@@ -295,18 +295,20 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
 
         # Get balance and calculate order quantity
         balance = roostoo_client.get_balance()
-        if not balance:
+        if not balance["Success"]:
             continue
-
-        usd_balance = balance.get("USD", {}).get("available", 0)
+        
+        print(balance)
+        usd_balance = balance["SpotWallet"]["USD"]["Free"]
         # Calculate the order price and quantity
         order_price = opportunity.minimum + 0.61 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
-
+        order_quantity = int(order_quantity)
+        print(f"USD Balance: {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
         # Place the order
-        action = "BUY" if trend == "bullish" else "SELL"
+        action = "BUY"
         placed_order = roostoo_client.place_order(
-            coin=coin,  # Replace with the actual coin symbol
+            coin=coin, 
             side=action,
             qty=order_quantity,
             price=order_price,
@@ -315,6 +317,15 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
         
         if placed_order:
             opportunity.action = action
+            trades.append(Trade(
+                order_id=placed_order["OrderDetail"]["OrderID"],
+                quantity=order_quantity,
+                support_line=opportunity.support_line,
+                minimum=opportunity.minimum,
+                maximum=opportunity.maximum,
+                stop_loss=(opportunity.minimum + opportunity.maximum) / 2,
+                profit_level=opportunity.maximum,
+            ))
         else:
             opportunity.action = "N/A"
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 from datetime import datetime
 
 import pandas as pd
+
+from .models import Trade
 from .utils import (
     update_pivots,
     update_support_resistance,
@@ -35,7 +37,7 @@ def findSignal(coin: str, executeTime: int):
         since=execute_ms - 7 * MILLIS_IN_DAY,
         until=execute_ms,
     )
-
+    trades: list[Trade] = []
     interval = "15m"
 
     btc_start_ms = execute_ms - TRADING_FREQUENCY_MS * 50
@@ -78,9 +80,10 @@ def findSignal(coin: str, executeTime: int):
     if trend != "volatile":
         update_pivots(coin_data, pivots)
         update_support_resistance(pivots, opportunities)
-        can_trade(coin, pivots, opportunities, trend)
+        can_trade(coin, pivots, opportunities, trades, trend)
         db.insert_pivots(coin, pivots)
         db.insert_opportunities(coin, opportunities)
+        db.insert_trades(coin, trades)
 
     # print(f"btc_data length: {len(btc_data)}")
     # print("btc_data details:")

@@ -22,26 +22,9 @@ class PivotPoint:
     type: Literal["high", "low"]
     is_supported: Optional[bool] = False
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "timestamp": int(self.timestamp),
-            "price": self.price,
-            "type": self.type,
-        }
-
-    @staticmethod
-    def from_dict(d: Dict[str, Any]) -> PivotPoint:
-        return PivotPoint(
-            timestamp=int(d["timestamp"]),
-            price=float(d["price"]),
-            type=d.get("type", "both"),
-        )
-
-
 @dataclass
 class Opportunity:
     """Simplified opportunity window bound to pivot extremes."""
-
     support_line: float
     minimum: float
     maximum: float
@@ -49,3 +32,13 @@ class Opportunity:
     action: str
     start: Optional[int] = None
     end: Optional[int] = None
+
+@dataclass
+class Trade:
+    order_id: int
+    quantity: float
+    support_line: float
+    minimum: float
+    maximum: float
+    stop_loss: float
+    profit_level: float

@@ -139,12 +139,13 @@ class RoostooClient:
 
 if __name__ == "__main__":
     client = RoostooClient()
-    client.get_server_time()
+    # client.get_server_time()
     # client.get_exchange_info()
     # client.get_ticker("DOGE/USD")
-    # client.get_balance()
-    # client.place_order("DOGE", "BUY", 10)
-    # client.place_order("DOGE", "BUY", 10, price=0.18504)
+    client.get_balance()
+    client.place_order("DOGE", "BUY", 10, price=0.177816)
+    # x = client.place_order("DOGE", "SELL", 10, price=0.19504)
+    # print(x["OrderDetail"]["OrderID"])
     # client.cancel_order(2329966)
     # client.query_order()
     # client.pending_count()

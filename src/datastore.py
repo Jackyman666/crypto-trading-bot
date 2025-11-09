@@ -14,7 +14,7 @@ import sqlite3
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
-from .models import Opportunity, PivotPoint
+from .models import Opportunity, PivotPoint, Trade
 from .utils import to_milliseconds
 
 
@@ -61,6 +61,18 @@ class SQLiteDataStore:
             start_time INTEGER,
             end_time INTEGER,
             PRIMARY KEY (coin, start_time, support_line)
+        );
+        
+        CREATE TABLE IF NOT EXISTS trades (
+            coin TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            order_id INTEGER NOT NULL,
+            support_line REAL NOT NULL,
+            minimum REAL NOT NULL,
+            maximum REAL NOT NULL,
+            stop_loss REAL NOT NULL,
+            profit_level REAL NOT NULL,
+            PRIMARY KEY (order_id)
         );
         """
 
@@ -186,6 +198,39 @@ class SQLiteDataStore:
 
         return opportunities
 
+    def fetch_trades(self) -> List[Trade]:
+        """
+        Fetch all Trade objects where `quantity > 0`.
+
+        Returns:
+            A list of Trade objects.
+        """
+        query = (
+            "SELECT order_id, quantity, support_line, minimum, maximum, stop_loss, profit_level "
+            "FROM trades WHERE quantity > 0 "
+            "ORDER BY order_id ASC"
+        )
+
+        with self._connect() as conn:
+            cursor = conn.execute(query)
+            rows = cursor.fetchall()
+
+        trades: List[Trade] = []
+        for row in rows:
+            trades.append(
+                Trade(
+                    order_id=int(row[0]),
+                    quantity=float(row[1]),
+                    support_line=float(row[2]),
+                    minimum=float(row[3]),
+                    maximum=float(row[4]),
+                    stop_loss=float(row[5]),
+                    profit_level=float(row[6]),
+                )
+            )
+
+        return trades
+
     def insert_pivots(self, coin: str, pivots: list[PivotPoint]) -> bool:
         """
         Insert or update a list of pivot points for ``coin``.
@@ -290,7 +335,66 @@ class SQLiteDataStore:
             print(f"Error inserting opportunities: {e}")
             return False
         
-    
+    def insert_trades(self, coin: str, trades: list[Trade]) -> bool:
+        """
+        Insert a list of trades into the database.
+
+        Args:
+            coin: The cryptocurrency symbol (e.g., "BTC").
+            trades: List of Trade objects to insert.
+
+        Returns:
+            True if all trades are successfully inserted, False otherwise.
+        """
+        if not trades:
+            return False
+
+        sql = (
+            "INSERT INTO trades "
+            "(coin, quantity, order_id, support_line, minimum, maximum, stop_loss, profit_level) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(order_id) DO UPDATE SET "
+            "quantity=excluded.quantity, "
+            "support_line=excluded.support_line, "
+            "minimum=excluded.minimum, "
+            "maximum=excluded.maximum, "
+            "stop_loss=excluded.stop_loss, "
+            "profit_level=excluded.profit_level"
+        )
+
+        try:
+            with self._connect() as conn:
+                for trade in trades:
+                    try:
+                        # Convert trade attributes to database-friendly values
+                        quantity = float(trade.quantity)
+                        support_line = float(trade.support_line)
+                        minimum = float(trade.minimum)
+                        maximum = float(trade.maximum)
+                        stop_loss = float(trade.stop_loss)
+                        profit_level = float(trade.profit_level)
+                    except (TypeError, ValueError):
+                        continue  # Skip invalid trades
+
+                    # Insert or update the trade in the database
+                    conn.execute(
+                        sql,
+                        (
+                            coin,
+                            quantity,
+                            trade.order_id,
+                            support_line,
+                            minimum,
+                            maximum,
+                            stop_loss,
+                            profit_level,
+                        ),
+                    )
+
+            return True
+        except Exception as e:
+            print(f"Error inserting trades: {e}")
+            return False
     # def ingest_csv(self, coin: str, csv_path: str | Path, *, batch_size: int = 1000) -> int:
     #     """Load OHLCV rows from a CSV file into the database.
 
