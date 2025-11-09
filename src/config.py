@@ -15,6 +15,8 @@ MAXIMUM_PERCENTAGE_DIFFERENCE = 0.005  # maximum percentage difference between p
 MINIMUM_BREAKTHROUGH_PERCENTAGE = 0.002  # minimum percentage price breakthrough for pivot_2 to consider support line broken
 SUPPORT_LINE_TIMEFRAME = 20 * TRADING_FREQUENCY_MS  # maximum number of candles after pivot_2 for a trade setup detection
 
+# Configuration for Opportunity
+TIME_EXTEND_MS = 5 * TRADING_FREQUENCY_MS  # time extension for opportunity window if min/max is found
 
 
 

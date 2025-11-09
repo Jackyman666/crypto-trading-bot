@@ -7,6 +7,7 @@ from .utils import (
     update_support_resistance,
     check_trend_conditions,
     to_milliseconds,
+    can_trade
 )
 from .config import TRADING_FREQUENCY_MS
 from .datastore import SQLiteDataStore
@@ -77,17 +78,20 @@ def findSignal(coin: str, executeTime: int):
     if trend != "volatile":
         update_pivots(coin_data, pivots)
         update_support_resistance(pivots, opportunities)
-    
-    print(f"btc_data length: {len(btc_data)}")
-    print("btc_data details:")
-    print(btc_data)
-    print(f"coin_data length: {len(coin_data)}")
-    print("coin_data details:")
-    print(coin_data)
-    print(f"Total pivots for {coin}: {len(pivots)}")
-    print(f"Pivot details: {pivots}")
-    print(f"Total opportunities for {coin}: {len(opportunities)}")
-    print(f"Opportunity details: {opportunities}")
+        can_trade(coin, pivots, opportunities, trend)
+        db.insert_pivots(coin, pivots)
+        db.insert_opportunities(coin, opportunities)
+
+    # print(f"btc_data length: {len(btc_data)}")
+    # print("btc_data details:")
+    # print(btc_data)
+    # print(f"coin_data length: {len(coin_data)}")
+    # print("coin_data details:")
+    # print(coin_data)
+    # print(f"Total pivots for {coin}: {len(pivots)}")
+    # print(f"Pivot details: {pivots}")
+    # print(f"Total opportunities for {coin}: {len(opportunities)}")
+    # print(f"Opportunity details: {opportunities}")
     # ticker = roostoo.get_ticker("BTC/USD")
     # print("BTC data length:", len(btc_data))
     # print("Ticker sample:", ticker)
