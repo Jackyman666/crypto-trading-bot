@@ -77,13 +77,13 @@ class SQLiteDataStore:
         """
 
         with self._connect() as conn:
-            try:
-                conn.execute(
-                    "DROP TABLE IF EXISTS trades;"
-                )
-            except sqlite3.OperationalError:
-                # Column already exists; ignore error.
-                pass
+            # try:
+            #     conn.execute(
+            #         "DROP TABLE IF EXISTS trades;"
+            #     )
+            # except sqlite3.OperationalError:
+            #     # Column already exists; ignore error.
+            #     pass
             conn.executescript(schema)
 
     def fetch_pivots(
@@ -548,4 +548,3 @@ class SQLiteDataStore:
     #         conn.executemany(insert_sql, payload)
 
     #     return len(payload)
-
