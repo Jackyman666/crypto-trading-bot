@@ -42,7 +42,7 @@ def coins_handler(data: pd.DataFrame, trades: list[Trade], roostoo_client: Roost
             q3 = t.quantity - (q1 + q2)
 
             # place three LIMIT sells and store *their* order IDs
-            for q, p in [(q1, tp1), (q2, tp2), (q3, tp3)]:
+            for q, p in [(q1, t.stop_loss[0]), (q2, t.stop_loss[1]), (q3, t.stop_loss[2])]:
                 placed = roostoo_client.place_order(
                     coin=t.coin, side="SELL", qty=q, price=p, order_type="LIMIT"
                 )
