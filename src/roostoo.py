@@ -5,7 +5,7 @@ import hmac
 import os
 import time
 from typing import Any, Dict, Optional
-
+from .config import RETRIES, BACK_OFF_FACTOR
 import requests
 from dotenv import load_dotenv
 
@@ -29,10 +29,10 @@ class RoostooClient:
         if not all([self.base_url, self.api_key, self.secret]):
             raise ValueError("Missing required environment variables. Please check your .env file.")
 
-        self.session = session or requests.Session()
+        self.retry = 0
 
     def _request(self, method: str, path: str, *, params: Optional[Dict[str, Any]] = None,
-                 data: Optional[Dict[str, Any]] = None, auth: bool = False) -> Optional[Dict[str, Any]]:
+                data: Optional[Dict[str, Any]] = None, auth: bool = False) -> Optional[Dict[str, Any]]:
         url = f"{self.base_url}{path}"
         payload = params if params is not None else data
         headers = {}
@@ -44,20 +44,44 @@ class RoostooClient:
                 "MSG-SIGNATURE": signature,
             }
 
-        try:
-            response = self.session.request(
-                method=method,
-                url=url,
-                params=params,
-                data=data,
-                headers=headers if headers else None,
-            )
-            response.raise_for_status()
-            print(f"Status: {response.status_code}, Response: {response.text}")
-            return response.json()
-        except requests.exceptions.RequestException as exc:
-            print(f"Error calling {path}: {exc}")
-            return None
+        retry = 0
+        while retry < RETRIES:
+            try:
+                response = requests.request(
+                    method=method,
+                    url=url,
+                    params=params,
+                    data=data,
+                    headers=headers if headers else None,
+                )
+                response.raise_for_status()  # Raise exception for HTTP errors (4xx, 5xx)
+
+                # Log and return successful response
+                print(f"Status: {response.status_code}, Response: {response.text}")
+                return response.json()
+
+            except requests.exceptions.HTTPError as exc:
+                # Handle 429 Too Many Requests
+                if exc.response.status_code == 429:
+                    retry += 1
+                    retry_after = int(exc.response.headers.get("Retry-After", 1))  # Use Retry-After if provided
+                    wait_time = BACK_OFF_FACTOR ** retry if "Retry-After" not in exc.response.headers else retry_after
+                    print(f"Rate limit exceeded (429). Retrying in {wait_time} seconds... (Attempt {retry}/{RETRIES})")
+                    time.sleep(wait_time)
+                else:
+                    # Log and re-raise for non-retryable HTTP errors
+                    print(f"HTTPError: {exc}. No retry for status {exc.response.status_code}.")
+                    break
+
+            except requests.exceptions.RequestException as exc:
+                # Handle generic request errors with retries
+                retry += 1
+                wait_time = BACK_OFF_FACTOR ** retry
+                print(f"RequestException: {exc}. Retrying in {wait_time} seconds... (Attempt {retry}/{RETRIES})")
+                time.sleep(wait_time)
+
+        print("Max retries reached. Returning None.")
+        return None
 
     def _generate_signature(self, params: Dict[str, Any]) -> str:
         query_string = "&".join([f"{k}={params[k]}" for k in sorted(params.keys())])
@@ -139,12 +163,13 @@ class RoostooClient:
 
 if __name__ == "__main__":
     client = RoostooClient()
-    client.get_server_time()
+    # client.get_server_time()
     # client.get_exchange_info()
     # client.get_ticker("DOGE/USD")
     # client.get_balance()
-    # client.place_order("DOGE", "BUY", 10)
-    # client.place_order("DOGE", "BUY", 10, price=0.18504)
-    # client.cancel_order(2329966)
+    # client.place_order("DOGE", "BUY", 10, price=0.177816)
+    # x = client.place_order("DOGE", "SELL", 10, price=0.19504)
+    # print(x["OrderDetail"]["OrderID"])
+    # client.cancel_order(2363270)
     # client.query_order()
     # client.pending_count()

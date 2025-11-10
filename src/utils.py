@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any
 from .roostoo import RoostooClient
 import pandas as pd
 
-from .models import PivotPoint, Opportunity
+from .models import PivotPoint, Opportunity, Trade
 from .config import (
     MAXIMUM_PERCENTAGE_DIFFERENCE,
     MINIMUM_BREAKTHROUGH_PERCENTAGE,
     PIVOT_POINT_COMPARE,
     SUPPORT_LINE_TIMEFRAME,
-    TRADING_FREQUENCY_MS,
+    TIME_EXTEND_MS,
     SET_TRADE_QUANTITY
 )
 
@@ -229,57 +229,10 @@ def update_support_resistance(pivots: list[PivotPoint], opportunities: list[Oppo
                 )
                 opportunities.append(new_opportunity)
 
-
-
-def check_minimum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> bool:
-    """Check if minimum conditions after breaking through support are met"""
-    # require a low pivot
-    if pivot.type != "low":
-        return False
-
-    # ensure timestamps fall inside opportunity window when provided
-    if getattr(opportunity, "start", None) is not None and pivot.timestamp < opportunity.start:
-        return False
-
-
-    # threshold: pivot must be lower than avg by the configured percentage
-    try:
-        pct = float(MINIMUM_BREAKTHROUGH_PERCENTAGE)
-    except Exception:
-        return False
-    
-    avg = opportunity.support_line
-    threshold = avg * (1.0 - pct)
-    if pivot.price >= threshold:
-        return False
-
-    return True
-
-def check_maximum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> bool:
-    """Check if maximum conditions after breaking out the previous high are met"""
-    # require a high pivot
-    if pivot.type != "high":
-        return False
-
-    # ensure timestamps fall inside opportunity window when provided
-    if getattr(opportunity, "start", None) is not None and pivot.timestamp < opportunity.start:
-        return False
-    
-
-    # Check if price breaks above previous pivot high
-    try:
-        # Use the new `relative_pivot` field which represents the pivot
-        # level used to determine breakouts. Require a positive value.
-        rp = float(getattr(opportunity, "relative_pivot", 0.0))
-        if rp <= 0:
-            return False
-        
-    except Exception:
-        return False
-    
-    return True
-
-def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunity], trend: str, roostoo_client: RoostooClient) -> None:
+def can_trade(
+    coin: str,pivots: list[PivotPoint], opportunities: list[Opportunity],
+    trades: list[Trade], trend: str, amount_precision: int, price_precision: int
+    ) -> None:
     """
     Determines whether a trade can be placed based on the trend, pivots, and opportunities.
 
@@ -291,10 +244,11 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
     """
     if not pivots or not opportunities or trend not in ["bullish", "bearish"]:
         return
-
-    
+    roostoo_client = RoostooClient()  # Initialize the Roostoo client
     for opportunity in opportunities:
-        if opportunity.action == "N/A" and trend == "bearish":
+        if opportunity.action != "N/A":
+            continue
+        if trend == "bearish":
             # Find the pivot low (relative_pivot)
             pivot_low = next((p for p in pivots if p.type == "low" and p.price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE)), 0)
             if not pivot_low:
@@ -306,7 +260,8 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
             maximum = max((p.price for p in pivots if p.price > pivot_low.price), 0)
             if not maximum:
                 continue
-
+            
+            opportunity.end += TIME_EXTEND_MS
             opportunity.maximum = maximum
 
             # Find the minimum (pivot point lower than support line)
@@ -316,7 +271,7 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
 
             opportunity.minimum = minimum
 
-        elif opportunity.action == "N/A" and trend == "bullish":
+        elif trend == "bullish":
             # Find the pivot high (relative_pivot)
             pivot_high = next((p for p in pivots if p.type == "high" and p.price > opportunity.support_line * (1 + MINIMUM_BREAKTHROUGH_PERCENTAGE)), None)
             if not pivot_high:
@@ -328,7 +283,8 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
             minimum = min((p.price for p in pivots if p.price < pivot_high.price), default=None)
             if not minimum:
                 continue
-
+            
+            opportunity.end += TIME_EXTEND_MS
             opportunity.minimum = minimum
 
             # Find the maximum (pivot point higher than support line)
@@ -341,25 +297,86 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
 
         # Get balance and calculate order quantity
         balance = roostoo_client.get_balance()
-        if not balance:
+        if not balance["Success"]:
             continue
-
-        usd_balance = balance.get("USD", {}).get("available", 0)
+        
+        print(balance)
+        usd_balance = balance["SpotWallet"]["USD"]["Free"]
         # Calculate the order price and quantity
         order_price = opportunity.minimum + 0.618 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
-
+        order_quantity = round(order_quantity, amount_precision)
+        order_price = round(order_price, price_precision)
+        print(f"USD Balance: {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
         # Place the order
-        action = "BUY" if trend == "bullish" else "SELL"
+        action = "BUY"
         placed_order = roostoo_client.place_order(
-            coin=coin,  # Replace with the actual coin symbol
+            coin=coin, 
             side=action,
             qty=order_quantity,
             price=order_price,
             order_type="LIMIT",
         )
         
-        if placed_order:
+        if placed_order["Success"]:
             opportunity.action = action
+            fib_range = opportunity.maximum - opportunity.minimum
+            trades.append(Trade(
+                coin=coin,
+                order_id=placed_order["OrderDetail"]["OrderID"],
+                quantity=order_quantity,
+                stop_loss=[(opportunity.minimum + opportunity.support_line)/2, opportunity.minimum + fib_range*0.618, fib_range*1.000],
+                profit_level=[fib_range*1.000, fib_range*1.618, fib_range*2.618],
+                tp_order_ids=[],
+                entry=0,
+            ))
         else:
             opportunity.action = "N/A"
+
+# def check_minimum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> bool:
+#     """Check if minimum conditions after breaking through support are met"""
+#     # require a low pivot
+#     if pivot.type != "low":
+#         return False
+
+#     # ensure timestamps fall inside opportunity window when provided
+#     if getattr(opportunity, "start", None) is not None and pivot.timestamp < opportunity.start:
+#         return False
+
+
+#     # threshold: pivot must be lower than avg by the configured percentage
+#     try:
+#         pct = float(MINIMUM_BREAKTHROUGH_PERCENTAGE)
+#     except Exception:
+#         return False
+    
+#     avg = opportunity.support_line
+#     threshold = avg * (1.0 - pct)
+#     if pivot.price >= threshold:
+#         return False
+
+#     return True
+
+# def check_maximum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> bool:
+#     """Check if maximum conditions after breaking out the previous high are met"""
+#     # require a high pivot
+#     if pivot.type != "high":
+#         return False
+
+#     # ensure timestamps fall inside opportunity window when provided
+#     if getattr(opportunity, "start", None) is not None and pivot.timestamp < opportunity.start:
+#         return False
+    
+
+#     # Check if price breaks above previous pivot high
+#     try:
+#         # Use the new `relative_pivot` field which represents the pivot
+#         # level used to determine breakouts. Require a positive value.
+#         rp = float(getattr(opportunity, "relative_pivot", 0.0))
+#         if rp <= 0:
+#             return False
+        
+#     except Exception:
+#         return False
+    
+#     return True
