@@ -18,7 +18,6 @@ class RoostooClient:
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         secret: Optional[str] = None,
-        session: Optional[requests.Session] = None,
     ) -> None:
         load_dotenv()
 
@@ -170,6 +169,7 @@ if __name__ == "__main__":
     # client.place_order("DOGE", "BUY", 10, price=0.177816)
     # x = client.place_order("DOGE", "SELL", 10, price=0.19504)
     # print(x["OrderDetail"]["OrderID"])
-    # client.cancel_order(2363270)
-    # client.query_order()
+    # print(x["Success"] == True)
+    # client.cancel_order(order_id=x["OrderDetail"]["OrderID"])
+    # x = client.query_order(order_id=x["OrderDetail"]["OrderID"])
     # client.pending_count()

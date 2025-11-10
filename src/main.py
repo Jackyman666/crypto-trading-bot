@@ -1,5 +1,4 @@
 from concurrent.futures import ThreadPoolExecutor
-import threading
 import time
 from datetime import datetime
 
@@ -7,7 +6,7 @@ import pandas as pd
 
 from src.roostoo import RoostooClient
 from src.find_signal import findSignal
-from src.handle_owned_coins import handle_owned_coins
+from src.handle_owned_coins import coins_handler
 from src.config import TRADING_FREQUENCY_MS
 from src.utils import to_milliseconds, check_trend_conditions
 
@@ -86,7 +85,7 @@ def main_loop():
                         print(f"Error in thread: {e}")
 
             print("\n--- All coin signals processed. Handling owned coins. ---")
-            handle_owned_coins()
+            coins_handler(execute_time, market_info)
 
         except Exception as e:
             print(f"An error occurred in the main loop: {e}")

@@ -21,6 +21,9 @@ SUPPORT_LINE_TIMEFRAME = 72 * TRADING_FREQUENCY_MS  # maximum number of candles 
 # Configuration for Opportunity
 TIME_EXTEND_MS = 5 * TRADING_FREQUENCY_MS  # time extension for opportunity window if min/max is found
 
+# Configuration for Current Execution
+SALES_RATIO = [0.5, 0.25, 0.25]  # ratio of quantity to sell at each profit level
+
 
 
 
