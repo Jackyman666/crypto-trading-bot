@@ -36,9 +36,9 @@ class Opportunity:
 @dataclass
 class Trade:
     coin: str
-    order_id: str
+    order_id: int
     quantity: float
+    entry: int
     stop_loss: list[float]
     profit_level: list[float]
     tp_order_ids: list[str]
-    entry: int # 0 if not entered, 1 if entered

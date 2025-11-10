@@ -317,7 +317,7 @@ def can_trade(
         print(balance)
         usd_balance = balance["SpotWallet"]["USD"]["Free"]
         # Calculate the order price and quantity
-        order_price = opportunity.minimum + 0.61 * (opportunity.maximum - opportunity.minimum)
+        order_price = opportunity.minimum + 0.618 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
         order_quantity = round(order_quantity, amount_precision)
         order_price = round(order_price, price_precision)
