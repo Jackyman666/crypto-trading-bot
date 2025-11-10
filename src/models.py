@@ -49,3 +49,16 @@ class Opportunity:
     action: str
     start: Optional[int] = None
     end: Optional[int] = None
+
+
+@dataclass
+class Trade:
+    """Simplified opportunity window bound to pivot extremes."""
+    coin: str
+    order_id: int
+    quantity: float
+    support_line: float
+    minimum: float
+    maximum: float
+    stop_loss: list[float]
+    profit_level: list[float]

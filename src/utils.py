@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Sequence
-from roostoo import RoostooClient
+from .roostoo import RoostooClient
 import pandas as pd
 
 from .models import PivotPoint, Opportunity
@@ -225,7 +225,7 @@ def update_support_resistance(pivots: list[PivotPoint], opportunities: list[Oppo
                     relative_pivot=0.0,
                     action="N/A",
                     start=pivots[j].timestamp,
-                    end=pivots[j].timestamp + MAXIMUM_PERCENTAGE_DIFFERENCE,
+                    end=pivots[j].timestamp + SUPPORT_LINE_TIMEFRAME,
                 )
                 opportunities.append(new_opportunity)
 
@@ -346,7 +346,7 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
 
         usd_balance = balance.get("USD", {}).get("available", 0)
         # Calculate the order price and quantity
-        order_price = opportunity.minimum + 0.61 * (opportunity.maximum - opportunity.minimum)
+        order_price = opportunity.minimum + 0.618 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
 
         # Place the order
