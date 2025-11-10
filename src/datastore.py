@@ -296,7 +296,13 @@ class SQLiteDataStore:
         sql = (
             "INSERT INTO opportunities "
             "(coin, support_line, minimum, maximum, relative_pivot, action, start_time, end_time) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT (coin, start_time, support_line) DO UPDATE SET "
+            "minimum = excluded.minimum, "
+            "maximum = excluded.maximum, "
+            "relative_pivot = excluded.relative_pivot, "
+            "action = excluded.action, "
+            "end_time = excluded.end_time;"
         )
 
         try:

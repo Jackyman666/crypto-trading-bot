@@ -242,7 +242,9 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
     if not pivots or not opportunities or trend not in ["bullish", "bearish"]:
         return
     roostoo_client = RoostooClient()  # Initialize the Roostoo client
-    
+    market = roostoo_client.get_exchange_info()
+    amount_precision = int(market["TradePairs"][f"{coin}/USD"]["AmountPrecision"])
+    price_precision = int(market["TradePairs"][f"{coin}/USD"]["PricePrecision"])
     for opportunity in opportunities:
         if opportunity.action != "N/A":
             continue
@@ -303,7 +305,8 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
         # Calculate the order price and quantity
         order_price = opportunity.minimum + 0.61 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
-        order_quantity = int(order_quantity)
+        order_quantity = round(order_quantity, amount_precision)
+        order_price = round(order_price, price_precision)
         print(f"USD Balance: {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
         # Place the order
         action = "BUY"
