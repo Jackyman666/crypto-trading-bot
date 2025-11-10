@@ -11,15 +11,12 @@ from .utils import (
     to_milliseconds,
     can_trade
 )
-from .config import TRADING_FREQUENCY_MS
+from .config import TRADING_FREQUENCY_MS, SUPPORT_LINE_TIMEFRAME
 from .datastore import SQLiteDataStore
 from .binance import BinanceClient
 
-MILLIS_IN_MINUTE = 60_000
-MILLIS_IN_DAY = 24 * 60 * MILLIS_IN_MINUTE
 
-
-def findSignal(coin: str, executeTime: int):
+def findSignal(coin: str, executeTime: int, btc_data: pd.DataFrame, amount_precision: int, price_precision: int) -> None:
     db = SQLiteDataStore()
     db.initialize()
     datasource = BinanceClient()
@@ -29,12 +26,12 @@ def findSignal(coin: str, executeTime: int):
 
     pivots = db.fetch_pivots(
         coin,
-        since=execute_ms - 7 * MILLIS_IN_DAY,
+        since=execute_ms - 7 * SUPPORT_LINE_TIMEFRAME,
         until=execute_ms,
     )
     opportunities = db.fetch_opportunities(
         coin,
-        since=execute_ms - 7 * MILLIS_IN_DAY,
+        since=execute_ms - 7 * SUPPORT_LINE_TIMEFRAME,
         until=execute_ms,
     )
     trades: list[Trade] = []
@@ -80,10 +77,10 @@ def findSignal(coin: str, executeTime: int):
     if trend != "volatile":
         update_pivots(coin_data, pivots)
         update_support_resistance(pivots, opportunities)
-        can_trade(coin, pivots, opportunities, trades, trend)
+        can_trade(coin, pivots, opportunities, trades, trend, amount_precision, price_precision)
         db.insert_pivots(coin, pivots)
         db.insert_opportunities(coin, opportunities)
-        db.insert_trades(coin, trades)
+        db.insert_trades(trades)
 
     # print(f"btc_data length: {len(btc_data)}")
     # print("btc_data details:")

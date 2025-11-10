@@ -10,6 +10,7 @@ We'll add read/write helpers later once the schema is locked in.
 from __future__ import annotations
 
 import csv
+import json
 import sqlite3
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
@@ -66,12 +67,11 @@ class SQLiteDataStore:
         CREATE TABLE IF NOT EXISTS trades (
             coin TEXT NOT NULL,
             quantity REAL NOT NULL,
-            order_id INTEGER NOT NULL,
-            support_line REAL NOT NULL,
-            minimum REAL NOT NULL,
-            maximum REAL NOT NULL,
-            stop_loss REAL NOT NULL,
-            profit_level REAL NOT NULL,
+            order_id TEXT NOT NULL,
+            stop_loss TEXT NOT NULL,  -- Store list[float] as a JSON string
+            profit_level TEXT NOT NULL,  -- Store list[float] as a JSON string
+            tp_order_ids TEXT NOT NULL,  -- Store list[str] as a JSON string
+            entry INTEGER NOT NULL,  -- 0 or 1
             PRIMARY KEY (order_id)
         );
         """
@@ -79,7 +79,7 @@ class SQLiteDataStore:
         with self._connect() as conn:
             try:
                 conn.execute(
-                    "DROP TABLE IF EXISTS ohlcv;"
+                    "DROP TABLE IF EXISTS trades;"
                 )
             except sqlite3.OperationalError:
                 # Column already exists; ignore error.
@@ -206,7 +206,7 @@ class SQLiteDataStore:
             A list of Trade objects.
         """
         query = (
-            "SELECT order_id, quantity, support_line, minimum, maximum, stop_loss, profit_level "
+            "SELECT coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry "
             "FROM trades WHERE quantity > 0 "
             "ORDER BY order_id ASC"
         )
@@ -219,13 +219,13 @@ class SQLiteDataStore:
         for row in rows:
             trades.append(
                 Trade(
-                    order_id=int(row[0]),
-                    quantity=float(row[1]),
-                    support_line=float(row[2]),
-                    minimum=float(row[3]),
-                    maximum=float(row[4]),
-                    stop_loss=float(row[5]),
-                    profit_level=float(row[6]),
+                    coin=str(row[0]),
+                    order_id=str(row[1]),
+                    quantity=float(row[2]),
+                    stop_loss=json.loads(row[3]),  # Deserialize JSON to list[float]
+                    profit_level=json.loads(row[4]),  # Deserialize JSON to list[float]
+                    tp_order_ids=json.loads(row[5]),  # Deserialize JSON to list[str]
+                    entry=int(row[6]),
                 )
             )
 
@@ -341,7 +341,7 @@ class SQLiteDataStore:
             print(f"Error inserting opportunities: {e}")
             return False
         
-    def insert_trades(self, coin: str, trades: list[Trade]) -> bool:
+    def insert_trades(self, trades: list[Trade]) -> bool:
         """
         Insert a list of trades into the database.
 
@@ -357,28 +357,24 @@ class SQLiteDataStore:
 
         sql = (
             "INSERT INTO trades "
-            "(coin, quantity, order_id, support_line, minimum, maximum, stop_loss, profit_level) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "(coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(order_id) DO UPDATE SET "
-            "quantity=excluded.quantity, "
-            "support_line=excluded.support_line, "
-            "minimum=excluded.minimum, "
-            "maximum=excluded.maximum, "
-            "stop_loss=excluded.stop_loss, "
-            "profit_level=excluded.profit_level"
+            "coin = excluded.coin, "
+            "quantity = excluded.quantity, "
+            "stop_loss = excluded.stop_loss, "
+            "profit_level = excluded.profit_level, "
+            "tp_order_ids = excluded.tp_order_ids, "
+            "entry = excluded.entry"
         )
-
         try:
             with self._connect() as conn:
                 for trade in trades:
                     try:
                         # Convert trade attributes to database-friendly values
-                        quantity = float(trade.quantity)
-                        support_line = float(trade.support_line)
-                        minimum = float(trade.minimum)
-                        maximum = float(trade.maximum)
-                        stop_loss = float(trade.stop_loss)
-                        profit_level = float(trade.profit_level)
+                        stop_loss_serialized = json.dumps(trade.stop_loss)
+                        profit_level_serialized = json.dumps(trade.profit_level)
+                        tp_order_ids_serialized = json.dumps(trade.tp_order_ids)
                     except (TypeError, ValueError):
                         continue  # Skip invalid trades
 
@@ -386,14 +382,13 @@ class SQLiteDataStore:
                     conn.execute(
                         sql,
                         (
-                            coin,
-                            quantity,
+                            trade.coin,
                             trade.order_id,
-                            support_line,
-                            minimum,
-                            maximum,
-                            stop_loss,
-                            profit_level,
+                            trade.quantity,
+                            stop_loss_serialized,
+                            profit_level_serialized,
+                            tp_order_ids_serialized,
+                            trade.entry,
                         ),
                     )
 
@@ -401,6 +396,7 @@ class SQLiteDataStore:
         except Exception as e:
             print(f"Error inserting trades: {e}")
             return False
+
     # def ingest_csv(self, coin: str, csv_path: str | Path, *, batch_size: int = 1000) -> int:
     #     """Load OHLCV rows from a CSV file into the database.
 

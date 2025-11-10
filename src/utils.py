@@ -225,11 +225,14 @@ def update_support_resistance(pivots: list[PivotPoint], opportunities: list[Oppo
                     relative_pivot=0.0,
                     action="N/A",
                     start=pivots[j].timestamp,
-                    end=pivots[j].timestamp + MAXIMUM_PERCENTAGE_DIFFERENCE,
+                    end=pivots[j].timestamp + SUPPORT_LINE_TIMEFRAME,
                 )
                 opportunities.append(new_opportunity)
 
-def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunity], trades: list[Trade], trend: str) -> None:
+def can_trade(
+    coin: str,pivots: list[PivotPoint], opportunities: list[Opportunity],
+    trades: list[Trade], trend: str, amount_precision: int, price_precision: int
+    ) -> None:
     """
     Determines whether a trade can be placed based on the trend, pivots, and opportunities.
 
@@ -242,9 +245,6 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
     if not pivots or not opportunities or trend not in ["bullish", "bearish"]:
         return
     roostoo_client = RoostooClient()  # Initialize the Roostoo client
-    market = roostoo_client.get_exchange_info()
-    amount_precision = int(market["TradePairs"][f"{coin}/USD"]["AmountPrecision"])
-    price_precision = int(market["TradePairs"][f"{coin}/USD"]["PricePrecision"])
     for opportunity in opportunities:
         if opportunity.action != "N/A":
             continue
@@ -318,16 +318,17 @@ def can_trade(coin: str,pivots: list[PivotPoint], opportunities: list[Opportunit
             order_type="LIMIT",
         )
         
-        if placed_order:
+        if placed_order["Success"]:
             opportunity.action = action
+            fib_range = opportunity.maximum - opportunity.minimum
             trades.append(Trade(
+                coin=coin,
                 order_id=placed_order["OrderDetail"]["OrderID"],
                 quantity=order_quantity,
-                support_line=opportunity.support_line,
-                minimum=opportunity.minimum,
-                maximum=opportunity.maximum,
-                stop_loss=(opportunity.minimum + opportunity.maximum) / 2,
-                profit_level=opportunity.maximum,
+                stop_loss=[(opportunity.minimum + opportunity.support_line)/2, opportunity.minimum + fib_range*0.618, fib_range*1.000],
+                profit_level=[fib_range*1.000, fib_range*1.618, fib_range*2.618],
+                tp_order_ids=[],
+                entry=0,
             ))
         else:
             opportunity.action = "N/A"
