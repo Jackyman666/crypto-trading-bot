@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 from .roostoo import RoostooClient
+from .binance import BinanceClient
 import pandas as pd
 
 from .models import PivotPoint, Opportunity, Trade
@@ -12,7 +13,9 @@ from .config import (
     PIVOT_POINT_COMPARE,
     SUPPORT_LINE_TIMEFRAME,
     TIME_EXTEND_MS,
-    SET_TRADE_QUANTITY
+    SET_TRADE_QUANTITY,
+    TRADE_INTERVAL,
+    TRADING_FREQUENCY_MS
 )
 
 
@@ -59,16 +62,27 @@ def to_milliseconds(value: Any) -> int | None:
     return int(numeric * 1000)
 
 
-def check_trend_conditions(data: pd.DataFrame) -> str:
+def check_trend_conditions(execute_ms: int) -> str:
     """Return trend classification from SMA(20) and SMA(50) on closing prices."""
-
-    if data is None or data.empty:
+    
+    datasource = BinanceClient()
+    btc_start_ms = execute_ms - TRADING_FREQUENCY_MS * 50
+    btc_data = datasource.get_historical_klines(
+        symbol="BTCUSDT",
+        interval=TRADE_INTERVAL,
+        start_time=btc_start_ms,
+        end_time=execute_ms,
+        limit=50,
+    )
+    
+    # print(f"btc_data length: {len(btc_data)}")
+    # print("btc_data details:")
+    # print(btc_data)
+    
+    if "close" not in btc_data.columns:
         return "volatile"
 
-    if "close" not in data.columns:
-        return "volatile"
-
-    closes = data.sort_index()["close"].dropna()
+    closes = btc_data.sort_index()["close"].dropna()
     short_window = 20
     long_window = 50
 
