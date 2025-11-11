@@ -82,7 +82,6 @@ class SQLiteDataStore:
         with self._connect() as conn:
             # try:
             #     conn.execute(
-            #         "DROP TABLE IF EXISTS trades"
             #     )
             # except sqlite3.OperationalError:
             #     # Column already exists; ignore error.
