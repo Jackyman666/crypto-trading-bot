@@ -17,9 +17,6 @@ from .config import (
     TRADE_INTERVAL,
     TRADING_FREQUENCY_MS
 )
-from .logger import get_logger
-
-logger = get_logger(__name__)
 
 
 def to_milliseconds(value: Any) -> int | None:
@@ -243,6 +240,7 @@ def update_support_resistance(pivots: list[PivotPoint], opportunities: list[Oppo
                     action="N/A",
                     start=pivots[j].timestamp,
                     end=pivots[j].timestamp + SUPPORT_LINE_TIMEFRAME,
+                    extrema_timestamp=0
                 )
                 opportunities.append(new_opportunity)
 
@@ -274,6 +272,7 @@ def can_trade(
                 if pivots[i].type == "low" and pivots[i].price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE):
                     opportunity.minimum = pivots[i].price
                     opportunity.end += TIME_EXTEND_MS
+                    opportunity.extrema_timestamp = pivots[i].timestamp
                 for j in range(i-1, -1, -1):
                     if pivots[j].type == "high":
                         opportunity.relative_pivot = pivots[j].price
@@ -310,14 +309,14 @@ def can_trade(
         if not balance["Success"]:
             continue
         
-        logger.info(balance)
+        print(balance)
         usd_balance = balance["SpotWallet"]["USD"]["Free"]
         # Calculate the order price and quantity
         order_price = opportunity.minimum + 0.618 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
         order_quantity = round(order_quantity, amount_precision)
         order_price = round(order_price, price_precision)
-        logger.info(f"USD Balance: {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
+        print(f"USD Balance: {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
         # Place the order
         action = "BUY"
         placed_order = roostoo_client.place_order(

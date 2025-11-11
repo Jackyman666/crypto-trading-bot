@@ -171,5 +171,5 @@ if __name__ == "__main__":
     # print(x["OrderDetail"]["OrderID"])
     # print(x["Success"] == True)
     # client.cancel_order(order_id=x["OrderDetail"]["OrderID"])
-    # x = client.query_order(order_id=x["OrderDetail"]["OrderID"])
+    # x = client.query_order()
     # client.pending_count()

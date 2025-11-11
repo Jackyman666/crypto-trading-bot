@@ -11,9 +11,6 @@ from .utils import (
 from .config import TRADING_FREQUENCY_MS, SUPPORT_LINE_TIMEFRAME, TRADE_INTERVAL
 from .datastore import SQLiteDataStore
 from .binance import BinanceClient
-from .logger import get_logger
-
-logger = get_logger(__name__)
 
 
 def findSignal(coin: str, executeTime: int, trend: str, amount_precision: int, price_precision: int) -> None:
@@ -54,9 +51,9 @@ def findSignal(coin: str, executeTime: int, trend: str, amount_precision: int, p
         db.insert_opportunities(coin, opportunities)
         db.insert_trades(trades)
 
-    logger.info(f"Found {len(pivots)} pivots and {len(opportunities)} opportunities for {coin}")
+    print(f"Found {len(pivots)} pivots and {len(opportunities)} opportunities for {coin}")
 
 current_time = datetime.now()
-logger.info(f"Current time: {current_time}")
+print(f"Current time: {current_time}")
 current_time_ms = to_milliseconds(current_time)
-logger.info(f"Current time in ms: {current_time_ms}")
+print(f"Current time in ms: {current_time_ms}")

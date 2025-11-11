@@ -76,14 +76,6 @@ class SQLiteDataStore:
             entry INTEGER NOT NULL,  -- 0 or 1
             PRIMARY KEY (order_id)
         );
-        
-        CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp_ms INTEGER NOT NULL,
-            level TEXT NOT NULL,
-            module TEXT NOT NULL,
-            message TEXT NOT NULL
-        );
         """
 
         with self._connect() as conn:
@@ -95,14 +87,6 @@ class SQLiteDataStore:
             #     # Column already exists; ignore error.
             #     pass
             conn.executescript(schema)
-            self.cleanup_logs(conn)
-
-    def cleanup_logs(self, conn: sqlite3.Connection):
-        """
-        Deletes log records older than 1 day.
-        """
-        one_day_ago_ms = (to_milliseconds(datetime.now()) or 0) - (24 * 60 * 60 * 1000)
-        conn.execute("DELETE FROM logs WHERE timestamp_ms < ?", (one_day_ago_ms,))
 
     def fetch_pivots(
         self,
@@ -414,17 +398,6 @@ class SQLiteDataStore:
         except Exception as e:
             print(f"Error inserting trades: {e}")
             return False
-
-    def insert_log(self, timestamp_ms: int, level: str, module: str, message: str):
-        """
-        Inserts a new log entry into the database.
-        """
-        sql = "INSERT INTO logs (timestamp_ms, level, module, message) VALUES (?, ?, ?, ?)"
-        try:
-            with self._connect() as conn:
-                conn.execute(sql, (timestamp_ms, level, module, message))
-        except Exception as e:
-            print(f"Error inserting log: {e}")
 
     # def ingest_csv(self, coin: str, csv_path: str | Path, *, batch_size: int = 1000) -> int:
     #     """Load OHLCV rows from a CSV file into the database.
