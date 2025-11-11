@@ -74,6 +74,7 @@ class SQLiteDataStore:
             profit_level TEXT NOT NULL,  -- Store list[float] as a JSON string
             tp_order_ids TEXT NOT NULL,  -- Store list[str] as a JSON string
             entry INTEGER NOT NULL,  -- 0 or 1
+            timestamp INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (order_id)
         );
         """
@@ -81,7 +82,7 @@ class SQLiteDataStore:
         with self._connect() as conn:
             # try:
             #     conn.execute(
-                    
+            #         "DROP TABLE IF EXISTS trades"
             #     )
             # except sqlite3.OperationalError:
             #     # Column already exists; ignore error.
@@ -207,7 +208,7 @@ class SQLiteDataStore:
             A list of Trade objects.
         """
         query = (
-            "SELECT coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry "
+            "SELECT coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry, timestamp "
             "FROM trades WHERE quantity > 0 "
             "ORDER BY order_id ASC"
         )
@@ -227,6 +228,7 @@ class SQLiteDataStore:
                     profit_level=json.loads(row[4]),  # Deserialize JSON to list[float]
                     tp_order_ids=json.loads(row[5]),  # Deserialize JSON to list[str]
                     entry=int(row[6]),
+                    timestamp=int(row[7])
                 )
             )
 
@@ -317,6 +319,7 @@ class SQLiteDataStore:
                         maximum = float(opportunity.maximum)
                         relative_pivot = float(getattr(opportunity, "relative_pivot", 0.0))
                         action = str(getattr(opportunity, "action", ""))
+                        extrema_timestamp = int(opportunity.extrema_timestamp)
                     except (TypeError, ValueError):
                         continue  # Skip invalid opportunities
 
@@ -335,6 +338,8 @@ class SQLiteDataStore:
                             action,
                             start_ts,
                             end_ts,
+                            extrema_timestamp
+                            
                         ),
                     )
 
@@ -359,15 +364,16 @@ class SQLiteDataStore:
 
         sql = (
             "INSERT INTO trades "
-            "(coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "(coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry, timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(order_id) DO UPDATE SET "
             "coin = excluded.coin, "
             "quantity = excluded.quantity, "
             "stop_loss = excluded.stop_loss, "
             "profit_level = excluded.profit_level, "
             "tp_order_ids = excluded.tp_order_ids, "
-            "entry = excluded.entry"
+            "entry = excluded.entry, "
+            "timestamp = excluded.timestamp"
         )
         try:
             with self._connect() as conn:
@@ -391,6 +397,7 @@ class SQLiteDataStore:
                             profit_level_serialized,
                             tp_order_ids_serialized,
                             trade.entry,
+                            trade.timestamp
                         ),
                     )
 
@@ -551,5 +558,5 @@ class SQLiteDataStore:
 
     #     return len(payload)
 
-db = SQLiteDataStore()
-db.initialize()
+# db = SQLiteDataStore()
+# db.initialize()

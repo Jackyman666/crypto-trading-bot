@@ -28,7 +28,9 @@ def main_loop():
     Main loop to run the trading bot.
     """
     roostoo_client = RoostooClient()
-    
+
+    # roostoo_client.place_order("DOGE", "BUY", 1)
+    # print("Trade later")
     while True:
         execute_time = to_milliseconds(datetime.now())
         print(f"\n--- Starting new trading cycle at {datetime.now()} ---")

@@ -43,3 +43,4 @@ class Trade:
     stop_loss: list[float]
     profit_level: list[float]
     tp_order_ids: list[str]
+    timestamp: int

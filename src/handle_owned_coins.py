@@ -27,12 +27,14 @@ def coins_handler(execute_time: int, market_info: dict[str, Any]) -> None:
         order = roostoo_client.query_order(order_id=t.order_id)
         if t.entry == 0 and order["OrderMatched"][0]["Status"] != "FILLED":
             continue
-
+        
+        print(f"Handling owned coins for {t.coin}...")
         price_precision = market_info["TradePairs"][f"{t.coin}/USD"]["PricePrecision"]
         amount_precision = market_info["TradePairs"][f"{t.coin}/USD"]["AmountPrecision"]
         if t.entry == 0:
             # place three LIMIT sells and store *their* order IDs
             for i in range(len(SALES_RATIO)):
+                
                 placed = roostoo_client.place_order(
                     coin=t.coin,
                     side="SELL",
@@ -40,6 +42,11 @@ def coins_handler(execute_time: int, market_info: dict[str, Any]) -> None:
                     price=round(t.profit_level[i], price_precision), 
                     order_type="LIMIT"
                 )
+                print(f"TRADE: {t}")
+                print(f"LIMIT SELL: {placed}")
+                print(f"Order: {order}")
+                if not placed["Success"]:
+                    break
                 t.tp_order_ids.append(placed["OrderDetail"]["OrderID"])
         t.entry = 1
 
@@ -72,7 +79,7 @@ def coins_handler(execute_time: int, market_info: dict[str, Any]) -> None:
         remain_qty = t.quantity * remain_frac
         if remain_qty > 0:
             roostoo_client.place_order(
-                coin=f"{t.coin}USD",
+                coin=t.coin,
                 side="SELL",
                 qty=round(remain_qty, amount_precision),
                 order_type="MARKET"

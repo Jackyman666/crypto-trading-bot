@@ -304,13 +304,16 @@ def can_trade(
 
         #     opportunity.minimum = minimum
         
+        # continue until both minimum and maximum are found
+        if opportunity.minimum == 0 or opportunity.maximum == 0:
+            continue
         # Get balance and calculate order quantity
         balance = roostoo_client.get_balance()
         if not balance["Success"]:
             continue
-        
-        print(balance)
+
         usd_balance = balance["SpotWallet"]["USD"]["Free"]
+        print(f"Current balance: {usd_balance}")
         # Calculate the order price and quantity
         order_price = opportunity.minimum + 0.618 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
@@ -334,10 +337,11 @@ def can_trade(
                 coin=coin,
                 order_id=placed_order["OrderDetail"]["OrderID"],
                 quantity=order_quantity,
-                stop_loss=[(opportunity.minimum + opportunity.support_line)/2, opportunity.minimum + fib_range*0.618, fib_range*1.000],
-                profit_level=[fib_range*1.000, fib_range*1.618, fib_range*2.618],
+                stop_loss=[(opportunity.minimum + opportunity.support_line)/2, opportunity.minimum + fib_range*0.618, opportunity.minimum + fib_range*1.000],
+                profit_level=[opportunity.minimum + fib_range*1.000, opportunity.minimum + fib_range*1.618, opportunity.minimum + fib_range*2.618],
                 tp_order_ids=[],
                 entry=0,
+                timestamp=placed_order["OrderDetail"]["CreateTimestamp"]
             ))
         else:
             opportunity.action = "N/A"

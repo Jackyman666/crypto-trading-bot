@@ -56,7 +56,7 @@ class RoostooClient:
                 response.raise_for_status()  # Raise exception for HTTP errors (4xx, 5xx)
 
                 # Log and return successful response
-                print(f"Status: {response.status_code}, Response: {response.text}")
+                # print(f"Status: {response.status_code}, Response: {response.text}")
                 return response.json()
 
             except requests.exceptions.HTTPError as exc:
@@ -162,7 +162,7 @@ class RoostooClient:
 
 if __name__ == "__main__":
     client = RoostooClient()
-    # client.get_server_time()
+    client.get_server_time()
     # client.get_exchange_info()
     # client.get_ticker("DOGE/USD")
     # client.get_balance()
