@@ -30,6 +30,7 @@ class Opportunity:
     maximum: float
     relative_pivot: float
     action: str
+    extrema_timestamp: int
     start: Optional[int] = None
     end: Optional[int] = None
 

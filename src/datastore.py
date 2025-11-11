@@ -12,6 +12,7 @@ from __future__ import annotations
 import csv
 import json
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
@@ -58,9 +59,10 @@ class SQLiteDataStore:
             minimum REAL NOT NULL,
             maximum REAL NOT NULL,
             relative_pivot REAL NOT NULL,
-            action TEXT DEFAULT '',
             start_time INTEGER,
             end_time INTEGER,
+            extrema_timestamp INTEGER NOT NULL,
+            action TEXT DEFAULT '',
             PRIMARY KEY (coin, start_time, support_line)
         );
         
@@ -74,17 +76,33 @@ class SQLiteDataStore:
             entry INTEGER NOT NULL,  -- 0 or 1
             PRIMARY KEY (order_id)
         );
+        
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp_ms INTEGER NOT NULL,
+            level TEXT NOT NULL,
+            module TEXT NOT NULL,
+            message TEXT NOT NULL
+        );
         """
 
         with self._connect() as conn:
             # try:
             #     conn.execute(
-            #         "DROP TABLE IF EXISTS trades;"
+                    
             #     )
             # except sqlite3.OperationalError:
             #     # Column already exists; ignore error.
             #     pass
             conn.executescript(schema)
+            self.cleanup_logs(conn)
+
+    def cleanup_logs(self, conn: sqlite3.Connection):
+        """
+        Deletes log records older than 1 day.
+        """
+        one_day_ago_ms = (to_milliseconds(datetime.now()) or 0) - (24 * 60 * 60 * 1000)
+        conn.execute("DELETE FROM logs WHERE timestamp_ms < ?", (one_day_ago_ms,))
 
     def fetch_pivots(
         self,
@@ -164,7 +182,7 @@ class SQLiteDataStore:
                 params.append(until_ts)
 
         query_parts = [
-            "SELECT support_line, minimum, maximum, relative_pivot, action, start_time, end_time"
+            "SELECT support_line, minimum, maximum, relative_pivot, action, start_time, end_time, extrema_timestamp",
             " FROM opportunities WHERE",
             " AND ".join(clauses),
             "ORDER BY COALESCE(start_time, end_time) ASC",
@@ -182,8 +200,6 @@ class SQLiteDataStore:
 
         opportunities: List[Opportunity] = []
         for row in rows:
-            start_dt = int(row[5]) if row[5] is not None else None
-            end_dt = int(row[6]) if row[6] is not None else None
             opportunities.append(
                 Opportunity(
                     support_line=float(row[0]),
@@ -191,8 +207,9 @@ class SQLiteDataStore:
                     maximum=float(row[2]),
                     relative_pivot=float(row[3]),
                     action=str(row[4]),
-                    start=start_dt,
-                    end=end_dt,
+                    start=row[5],
+                    end=row[6],
+                    extrema_timestamp=int(row[7]),
                 )
             )
 
@@ -295,14 +312,15 @@ class SQLiteDataStore:
 
         sql = (
             "INSERT INTO opportunities "
-            "(coin, support_line, minimum, maximum, relative_pivot, action, start_time, end_time) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "(coin, support_line, minimum, maximum, relative_pivot, action, start_time, end_time, extrema_timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT (coin, start_time, support_line) DO UPDATE SET "
             "minimum = excluded.minimum, "
             "maximum = excluded.maximum, "
             "relative_pivot = excluded.relative_pivot, "
             "action = excluded.action, "
-            "end_time = excluded.end_time;"
+            "end_time = excluded.end_time, "
+            "extrema_timestamp = excluded.extrema_timestamp;"
         )
 
         try:
@@ -396,6 +414,17 @@ class SQLiteDataStore:
         except Exception as e:
             print(f"Error inserting trades: {e}")
             return False
+
+    def insert_log(self, timestamp_ms: int, level: str, module: str, message: str):
+        """
+        Inserts a new log entry into the database.
+        """
+        sql = "INSERT INTO logs (timestamp_ms, level, module, message) VALUES (?, ?, ?, ?)"
+        try:
+            with self._connect() as conn:
+                conn.execute(sql, (timestamp_ms, level, module, message))
+        except Exception as e:
+            print(f"Error inserting log: {e}")
 
     # def ingest_csv(self, coin: str, csv_path: str | Path, *, batch_size: int = 1000) -> int:
     #     """Load OHLCV rows from a CSV file into the database.
@@ -548,3 +577,6 @@ class SQLiteDataStore:
     #         conn.executemany(insert_sql, payload)
 
     #     return len(payload)
+
+db = SQLiteDataStore()
+db.initialize()

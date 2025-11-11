@@ -11,6 +11,9 @@ from .utils import (
 from .config import TRADING_FREQUENCY_MS, SUPPORT_LINE_TIMEFRAME, TRADE_INTERVAL
 from .datastore import SQLiteDataStore
 from .binance import BinanceClient
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def findSignal(coin: str, executeTime: int, trend: str, amount_precision: int, price_precision: int) -> None:
@@ -51,24 +54,9 @@ def findSignal(coin: str, executeTime: int, trend: str, amount_precision: int, p
         db.insert_opportunities(coin, opportunities)
         db.insert_trades(trades)
 
-    # print(f"btc_data length: {len(btc_data)}")
-    # print("btc_data details:")
-    # print(btc_data)
-    # print(f"coin_data length: {len(coin_data)}")
-    # print("coin_data details:")
-    # print(coin_data)
-    # print(f"Total pivots for {coin}: {len(pivots)}")
-    # print(f"Pivot details: {pivots}")
-    # print(f"Total opportunities for {coin}: {len(opportunities)}")
-    # print(f"Opportunity details: {opportunities}")
-    # ticker = roostoo.get_ticker("BTC/USD")
-    # print("BTC data length:", len(btc_data))
-    # print("Ticker sample:", ticker)
-
-    # balance = roostoo.get_balance()
-    # print("Balance:", balance)
+    logger.info(f"Found {len(pivots)} pivots and {len(opportunities)} opportunities for {coin}")
 
 current_time = datetime.now()
-print("Current time:", current_time)
+logger.info(f"Current time: {current_time}")
 current_time_ms = to_milliseconds(current_time)
-print("Current time in ms:", current_time_ms)
+logger.info(f"Current time in ms: {current_time_ms}")

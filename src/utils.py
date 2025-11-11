@@ -17,6 +17,9 @@ from .config import (
     TRADE_INTERVAL,
     TRADING_FREQUENCY_MS
 )
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def to_milliseconds(value: Any) -> int | None:
@@ -262,66 +265,59 @@ def can_trade(
     for opportunity in opportunities:
         if opportunity.action != "N/A":
             continue
-        if trend == "bearish":
-            # Find the pivot low (relative_pivot)
-            pivot_low = next((p for p in pivots if p.type == "low" and p.price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE)), 0)
-            if not pivot_low:
-                continue
 
-            opportunity.relative_pivot = pivot_low.price
-
-            # Find the maximum (pivot point higher than pivot low)
-            maximum = max((p.price for p in pivots if p.price > pivot_low.price), 0)
-            if not maximum:
-                continue
-            
-            opportunity.end += TIME_EXTEND_MS
-            opportunity.maximum = maximum
-
-            # Find the minimum (pivot point lower than support line)
-            minimum = min((p.price for p in pivots if p.price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE)), 0)
-            if not minimum:
-                continue
-
-            opportunity.minimum = minimum
-
-        elif trend == "bullish":
+        if trend == "bullish":
             # Find the pivot high (relative_pivot)
-            pivot_high = next((p for p in pivots if p.type == "high" and p.price > opportunity.support_line * (1 + MINIMUM_BREAKTHROUGH_PERCENTAGE)), None)
-            if not pivot_high:
-                continue
+            for i in range(len(pivots)):
+                if pivots[i].timestamp < opportunity.start or pivots[i].timestamp < opportunity.extrema_timestamp:
+                    continue
+                if pivots[i].type == "low" and pivots[i].price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE):
+                    opportunity.minimum = pivots[i].price
+                    opportunity.end += TIME_EXTEND_MS
+                for j in range(i-1, -1, -1):
+                    if pivots[j].type == "high":
+                        opportunity.relative_pivot = pivots[j].price
+                        break
+                if opportunity.minimum > 0 and pivots[i].price > opportunity.relative_pivot:
+                    opportunity.maximum = pivots[i].price
+                    break
+        
+        # elif trend == "bearish":
+        #     # Find the pivot low (relative_pivot)
+        #     pivot_low = next((p for p in pivots if p.type == "low" and p.price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE)), 0)
+        #     if not pivot_low:
+        #         continue
 
-            opportunity.relative_pivot = pivot_high.price
+        #     opportunity.relative_pivot = pivot_low.price
 
-            # Find the minimum (pivot point lower than pivot high)
-            minimum = min((p.price for p in pivots if p.price < pivot_high.price), default=None)
-            if not minimum:
-                continue
+        #     # Find the maximum (pivot point higher than pivot low)
+        #     maximum = max((p.price for p in pivots if p.price > pivot_low.price), 0)
+        #     if not maximum:
+        #         continue
             
-            opportunity.end += TIME_EXTEND_MS
-            opportunity.minimum = minimum
+        #     opportunity.end += TIME_EXTEND_MS
+        #     opportunity.maximum = maximum
 
-            # Find the maximum (pivot point higher than support line)
-            maximum = max((p.price for p in pivots if p.price > opportunity.support_line * (1 + MINIMUM_BREAKTHROUGH_PERCENTAGE)), default=None)
-            if not maximum:
-                continue
+        #     # Find the minimum (pivot point lower than support line)
+        #     minimum = min((p.price for p in pivots if p.price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE)), 0)
+        #     if not minimum:
+        #         continue
 
-            opportunity.maximum = maximum
-
-
+        #     opportunity.minimum = minimum
+        
         # Get balance and calculate order quantity
         balance = roostoo_client.get_balance()
         if not balance["Success"]:
             continue
         
-        print(balance)
+        logger.info(balance)
         usd_balance = balance["SpotWallet"]["USD"]["Free"]
         # Calculate the order price and quantity
         order_price = opportunity.minimum + 0.618 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
         order_quantity = round(order_quantity, amount_precision)
         order_price = round(order_price, price_precision)
-        print(f"USD Balance: {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
+        logger.info(f"USD Balance: {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
         # Place the order
         action = "BUY"
         placed_order = roostoo_client.place_order(
