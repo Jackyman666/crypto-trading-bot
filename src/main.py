@@ -29,9 +29,7 @@ def main_loop():
     """
     roostoo_client = RoostooClient()
 
-    roostoo_client.get_balance()
-
-    while False:
+    while True:
         execute_time = to_milliseconds(datetime.now())
         print(f"\n--- Starting new trading cycle at {datetime.now()} ---")
 
