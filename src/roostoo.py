@@ -22,8 +22,8 @@ class RoostooClient:
         load_dotenv()
 
         self.base_url = base_url or os.getenv("ROOSTOO_BASE_URL")
-        self.api_key = api_key or os.getenv("ROOSTOO_API_KEY")
-        self.secret = secret or os.getenv("ROOSTOO_SECRET_KEY")
+        self.api_key = api_key or os.getenv("ROOSTOO_TEST_API_KEY")
+        self.secret = secret or os.getenv("ROOSTOO_TEST_SECRET_KEY")
 
         if not all([self.base_url, self.api_key, self.secret]):
             raise ValueError("Missing required environment variables. Please check your .env file.")
