@@ -33,10 +33,10 @@ def findSignal(coin: str, executeTime: int, trend: str, amount_precision: int, p
     )
     trades: list[Trade] = []
 
-    coin_symbol = f"{coin.upper()}USDT"
+
     coin_start_ms = execute_ms - TRADING_FREQUENCY_MS * 25
     coin_data = datasource.get_historical_klines(
-        symbol=coin_symbol,
+        symbol=coin,
         interval=TRADE_INTERVAL,
         start_time=coin_start_ms,
         end_time=execute_ms,

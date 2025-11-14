@@ -68,7 +68,7 @@ def check_trend_conditions(execute_ms: int) -> str:
     datasource = BinanceClient()
     btc_start_ms = execute_ms - TRADING_FREQUENCY_MS * 50
     btc_data = datasource.get_historical_klines(
-        symbol="BTCUSDT",
+        symbol="BTC",
         interval=TRADE_INTERVAL,
         start_time=btc_start_ms,
         end_time=execute_ms,

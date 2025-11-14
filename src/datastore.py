@@ -557,5 +557,5 @@ class SQLiteDataStore:
 
     #     return len(payload)
 
-# db = SQLiteDataStore()
-# db.initialize()
+db = SQLiteDataStore()
+db.initialize()

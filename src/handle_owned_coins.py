@@ -51,7 +51,7 @@ def coins_handler(execute_time: int, market_info: dict[str, Any]) -> None:
         t.entry = 1
 
         data = bianance_client.get_historical_klines(
-            symbol=f"{t.coin.upper()}USDT",
+            symbol=t.coin.upper(),
             interval=TRADE_INTERVAL,
             start_time=execute_time - TRADING_FREQUENCY_MS,
             end_time=execute_time,

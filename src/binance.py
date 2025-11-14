@@ -13,7 +13,7 @@ class BinanceClient:
     """API client for Binance exchange with focus on historical data."""
 
     # API Endpoints
-    BASE_URL = "https://api.binance.com"
+    BASE_URL = "https://api.binance.us"
     KLINES_PATH = "/api/v3/klines"
     EXCHANGE_INFO_PATH = "/api/v3/exchangeInfo"
     TICKER_PATH = "/api/v3/ticker/24hr"
@@ -60,7 +60,7 @@ class BinanceClient:
         Fetch historical klines/candlestick data.
         
         Args:
-            symbol: Trading pair (e.g., 'BTCUSDT')
+            symbol: Trading pair (e.g., 'BTCUSD')
             interval: Kline interval ('1m','3m','5m','15m','30m','1h','2h','4h','6h','8h','12h','1d','3d','1w','1M')
             start_time: Start time as epoch seconds, milliseconds, or datetime (optional)
             end_time: End time as epoch seconds, milliseconds, or datetime (optional)
@@ -70,7 +70,7 @@ class BinanceClient:
             DataFrame with columns: timestamp, open, high, low, close, volume, etc.
         """
         params: Dict[str, Any] = {
-            "symbol": symbol.upper(),
+            "symbol": f"{symbol.upper()}USD",
             "interval": interval,
             "limit": limit
         }
