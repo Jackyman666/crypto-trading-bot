@@ -56,7 +56,8 @@ class RoostooClient:
                 response.raise_for_status()  # Raise exception for HTTP errors (4xx, 5xx)
 
                 # Log and return successful response
-                # print(f"Status: {response.status_code}, Response: {response.text}")
+                if not path == "/v3/exchangeInfo":
+                    print(f"Status: {response.status_code}, Response: {response.text}")
                 return response.json()
 
             except requests.exceptions.HTTPError as exc:

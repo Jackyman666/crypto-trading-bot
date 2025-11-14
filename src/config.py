@@ -5,6 +5,7 @@ SET_TRADE_QUANTITY = 0.01 # fixed trade quantity to place orders once set up(sig
 RETRIES = 3  # number of retries for API requests
 BACK_OFF_FACTOR = 2  # exponential backoff factor for retries in seconds
 TRADE_INTERVAL = "5m"  # interval for trade data retrieval
+TRADE_COINS = ["XRP", "ZEC", "SOL", "UNI", "HBAR", "PAXG"]
 
 # Configuration for Trend Detection
 VOLATIILE_THRESHOLD = 20  # time threshold for determining if the market is volatile

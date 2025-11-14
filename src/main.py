@@ -7,7 +7,7 @@ import pandas as pd
 from src.roostoo import RoostooClient
 from src.find_signal import findSignal
 from src.handle_owned_coins import coins_handler
-from src.config import TRADING_FREQUENCY_MS
+from src.config import TRADING_FREQUENCY_MS, TRADE_COINS
 from src.utils import to_milliseconds, check_trend_conditions
 
 
@@ -50,11 +50,11 @@ def main_loop():
                 continue
 
             coins_to_process = []
-            for symbol, details in market_info.get("TradePairs", {}).items():
-                if "/USD" in symbol:
-                    coin_name = symbol.split('/')[0]
+            for coin in TRADE_COINS:
+                if f"{coin}/USD" in market_info.get("TradePairs", {}):
+                    details = market_info["TradePairs"][f"{coin}/USD"]
                     coins_to_process.append({
-                        "name": coin_name,
+                        "name": coin,
                         "amount_precision": details.get("AmountPrecision"),
                         "price_precision": details.get("PricePrecision")
                     })
