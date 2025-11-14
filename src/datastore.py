@@ -79,6 +79,60 @@ class SQLiteDataStore:
         );
         """
 
+        # List of schema update SQLs to add datetime columns
+        schema_updates = [
+            """
+            ALTER TABLE pivots ADD COLUMN datetime TEXT;
+            """,
+            """
+            ALTER TABLE opportunities ADD COLUMN datetime TEXT;
+            """,
+            """
+            ALTER TABLE opportunities ADD COLUMN extrema_datetime TEXT;
+            """,
+            """
+            ALTER TABLE trades ADD COLUMN datetime TEXT;
+            """
+        ]
+        
+        # # List of SQLs to populate datetime columns from existing timestamp columns
+        # populate_datetime = [
+        #     """
+        #     UPDATE pivots
+        #     SET datetime = datetime(timestamp, 'unixepoch');
+        #     """,
+        #     """
+        #     UPDATE opportunities
+        #     SET datetime = datetime(start_time, 'unixepoch');
+        #     """,
+        #     """
+        #     UPDATE opportunities
+        #     SET extrema_datetime = datetime(extrema_timestamp, 'unixepoch');
+        #     """,
+        #     """
+        #     UPDATE trades
+        #     SET datetime = datetime(timestamp, 'unixepoch');
+        #     """
+        # ]
+
+        # # Execute schema updates and population in the database
+        # with self._connect() as conn:
+        #     cursor = conn.cursor()
+        #     # Perform schema updates
+        #     for update in schema_updates:
+        #         try:
+        #             cursor.execute(update)
+        #             print(f"Successfully executed: {update.strip()}")
+        #         except Exception as e:
+        #             print(f"Could not alter table: {e}")
+
+        #     # Populate datetime columns
+        #     for populate in populate_datetime:
+        #         try:
+        #             cursor.execute(populate)
+        #             print(f"Successfully executed: {populate.strip()}")
+        #         except Exception as e:
+        #             print(f"Could not populate datetime column: {e}")
         with self._connect() as conn:
             # try:
             #     conn.execute(

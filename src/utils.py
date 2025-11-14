@@ -269,14 +269,17 @@ def can_trade(
             for i in range(len(pivots)):
                 if pivots[i].timestamp < opportunity.start or pivots[i].timestamp < opportunity.extrema_timestamp:
                     continue
-                if pivots[i].type == "low" and pivots[i].price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE):
+                if opportunity.minimum == 0 and pivots[i].type == "low" and pivots[i].price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE):
                     opportunity.minimum = pivots[i].price
                     opportunity.end += TIME_EXTEND_MS
                     opportunity.extrema_timestamp = pivots[i].timestamp
-                for j in range(i-1, -1, -1):
-                    if pivots[j].type == "high":
-                        opportunity.relative_pivot = pivots[j].price
-                        break
+                    for j in range(i-1, -1, -1):
+                        if pivots[j].type == "high":
+                            opportunity.relative_pivot = pivots[j].price
+                            break
+                if opportunity.minimum != 0 and pivots[i].type == "low" and pivots[i].price < opportunity.support_line * (1 - MINIMUM_BREAKTHROUGH_PERCENTAGE):
+                    opportunity.minimum = pivots[i].price
+                    opportunity.extrema_timestamp = pivots[i].timestamp
                 if opportunity.minimum > 0 and pivots[i].price > opportunity.relative_pivot:
                     opportunity.maximum = pivots[i].price
                     break

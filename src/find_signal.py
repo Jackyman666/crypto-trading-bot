@@ -23,12 +23,12 @@ def findSignal(coin: str, executeTime: int, trend: str, amount_precision: int, p
 
     pivots = db.fetch_pivots(
         coin,
-        since=execute_ms - 7 * SUPPORT_LINE_TIMEFRAME,
+        since=execute_ms - SUPPORT_LINE_TIMEFRAME,
         until=execute_ms,
     )
     opportunities = db.fetch_opportunities(
         coin,
-        since=execute_ms - 7 * SUPPORT_LINE_TIMEFRAME,
+        since=execute_ms - SUPPORT_LINE_TIMEFRAME,
         until=execute_ms,
     )
     trades: list[Trade] = []
