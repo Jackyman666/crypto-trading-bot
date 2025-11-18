@@ -9,15 +9,13 @@ We'll add read/write helpers later once the schema is locked in.
 
 from __future__ import annotations
 
-import csv
 import json
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 from .models import Opportunity, PivotPoint, Trade
-from .utils import to_milliseconds
+from .utils import to_milliseconds, milliseconds_to_datetime
 
 
 def _ensure_parent(path: Path) -> None:
@@ -50,6 +48,7 @@ class SQLiteDataStore:
             price REAL NOT NULL,
             pivot_type TEXT NOT NULL CHECK (pivot_type IN ('high', 'low')),
             is_supported INTEGER NOT NULL DEFAULT 0,
+            'datetime' TEXT,
             PRIMARY KEY (coin, timestamp, pivot_type)
         );
 
@@ -63,6 +62,8 @@ class SQLiteDataStore:
             end_time INTEGER,
             extrema_timestamp INTEGER NOT NULL,
             action TEXT DEFAULT '',
+            'datetime' TEXT,
+            extrema_datetime TEXT,
             PRIMARY KEY (coin, start_time, support_line)
         );
         
@@ -75,45 +76,10 @@ class SQLiteDataStore:
             tp_order_ids TEXT NOT NULL,  -- Store list[str] as a JSON string
             entry INTEGER NOT NULL,  -- 0 or 1
             timestamp INTEGER NOT NULL DEFAULT 0,
+            'datetime' TEXT,
             PRIMARY KEY (order_id)
         );
         """
-
-        # List of schema update SQLs to add datetime columns
-        schema_updates = [
-            """
-            ALTER TABLE pivots ADD COLUMN datetime TEXT;
-            """,
-            """
-            ALTER TABLE opportunities ADD COLUMN datetime TEXT;
-            """,
-            """
-            ALTER TABLE opportunities ADD COLUMN extrema_datetime TEXT;
-            """,
-            """
-            ALTER TABLE trades ADD COLUMN datetime TEXT;
-            """
-        ]
-        
-        # # List of SQLs to populate datetime columns from existing timestamp columns
-        # populate_datetime = [
-        #     """
-        #     UPDATE pivots
-        #     SET datetime = datetime(timestamp, 'unixepoch');
-        #     """,
-        #     """
-        #     UPDATE opportunities
-        #     SET datetime = datetime(start_time, 'unixepoch');
-        #     """,
-        #     """
-        #     UPDATE opportunities
-        #     SET extrema_datetime = datetime(extrema_timestamp, 'unixepoch');
-        #     """,
-        #     """
-        #     UPDATE trades
-        #     SET datetime = datetime(timestamp, 'unixepoch');
-        #     """
-        # ]
 
         # # Execute schema updates and population in the database
         # with self._connect() as conn:
@@ -302,10 +268,10 @@ class SQLiteDataStore:
             return False
 
         sql = (
-            "INSERT INTO pivots (coin, timestamp, price, pivot_type, is_supported) "
-            "VALUES (?, ?, ?, ?, ?) "
+            "INSERT INTO pivots (coin, timestamp, price, pivot_type, is_supported, datetime) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(coin, timestamp, pivot_type) DO UPDATE SET "
-            "price=excluded.price, is_supported=excluded.is_supported"
+            "price=excluded.price, is_supported=excluded.is_supported, datetime=excluded.datetime"
         )
 
         try:
@@ -326,9 +292,10 @@ class SQLiteDataStore:
                         continue  # Skip invalid pivot points
 
                     is_supported = int(bool(getattr(pivot, "is_supported", False)))
+                    datetime_value = milliseconds_to_datetime(timestamp)
 
                     # Insert or update the pivot point in the database
-                    conn.execute(sql, (coin, timestamp, price, pivot_type, is_supported))
+                    conn.execute(sql, (coin, timestamp, price, pivot_type, is_supported, datetime_value))
 
             return True
         except Exception as e:
@@ -351,15 +318,17 @@ class SQLiteDataStore:
 
         sql = (
             "INSERT INTO opportunities "
-            "(coin, support_line, minimum, maximum, relative_pivot, action, start_time, end_time, extrema_timestamp) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "(coin, support_line, minimum, maximum, relative_pivot, action, start_time, end_time, extrema_timestamp, datetime, extrema_datetime) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT (coin, start_time, support_line) DO UPDATE SET "
             "minimum = excluded.minimum, "
             "maximum = excluded.maximum, "
             "relative_pivot = excluded.relative_pivot, "
             "action = excluded.action, "
             "end_time = excluded.end_time, "
-            "extrema_timestamp = excluded.extrema_timestamp;"
+            "extrema_timestamp = excluded.extrema_timestamp, "
+            "datetime = excluded.datetime, "
+            "extrema_datetime = excluded.extrema_datetime;"
         )
 
         try:
@@ -378,6 +347,8 @@ class SQLiteDataStore:
 
                     start_ts = to_milliseconds(getattr(opportunity, "start", None))
                     end_ts = to_milliseconds(getattr(opportunity, "end", None))
+                    datetime = milliseconds_to_datetime(start_ts)
+                    extrema_datetime = milliseconds_to_datetime(extrema_timestamp)
 
                     # Insert the opportunity into the database
                     conn.execute(
@@ -391,8 +362,9 @@ class SQLiteDataStore:
                             action,
                             start_ts,
                             end_ts,
-                            extrema_timestamp
-                            
+                            extrema_timestamp,
+                            datetime,
+                            extrema_datetime
                         ),
                     )
 
@@ -417,8 +389,8 @@ class SQLiteDataStore:
 
         sql = (
             "INSERT INTO trades "
-            "(coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry, timestamp) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "(coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry, timestamp, datetime) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(order_id) DO UPDATE SET "
             "coin = excluded.coin, "
             "quantity = excluded.quantity, "
@@ -426,7 +398,8 @@ class SQLiteDataStore:
             "profit_level = excluded.profit_level, "
             "tp_order_ids = excluded.tp_order_ids, "
             "entry = excluded.entry, "
-            "timestamp = excluded.timestamp"
+            "timestamp = excluded.timestamp, "
+            "datetime = excluded.datetime"
         )
         try:
             with self._connect() as conn:
@@ -450,7 +423,8 @@ class SQLiteDataStore:
                             profit_level_serialized,
                             tp_order_ids_serialized,
                             trade.entry,
-                            trade.timestamp
+                            trade.timestamp,
+                            milliseconds_to_datetime(trade.timestamp)
                         ),
                     )
 
@@ -611,5 +585,5 @@ class SQLiteDataStore:
 
     #     return len(payload)
 
-db = SQLiteDataStore()
-db.initialize()
+# db = SQLiteDataStore()
+# db.initialize()

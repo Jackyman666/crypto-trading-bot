@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from .roostoo import RoostooClient
 from .binance import BinanceClient
@@ -18,6 +18,18 @@ from .config import (
     TRADING_FREQUENCY_MS
 )
 
+def milliseconds_to_datetime(ms):
+    """Convert milliseconds to datetime with UTC+8 timezone."""
+    # Convert milliseconds to seconds
+    seconds = ms / 1000.0
+    
+    # Convert to UTC datetime
+    utc_datetime = datetime.fromtimestamp(seconds, tz=timezone.utc)
+    
+    # Add 8 hours to adjust to UTC+8
+    utc_plus_8 = utc_datetime + timedelta(hours=8)
+    
+    return utc_plus_8
 
 def to_milliseconds(value: Any) -> int | None:
     """Normalize assorted timestamp-like inputs to epoch milliseconds."""
