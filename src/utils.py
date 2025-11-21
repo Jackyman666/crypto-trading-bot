@@ -327,14 +327,13 @@ def can_trade(
         if not balance["Success"]:
             continue
 
-        usd_balance = balance["SpotWallet"]["USD"]["Free"]
-        print(f"Current balance: {usd_balance}")
+        usd_balance = 50000 # hard set as the initial value #50000 instead of balance["SpotWallet"]["USD"]["Free"]
         # Calculate the order price and quantity
         order_price = opportunity.minimum + 0.618 * (opportunity.maximum - opportunity.minimum)
         order_quantity = (usd_balance * SET_TRADE_QUANTITY) / order_price
         order_quantity = round(order_quantity, amount_precision)
         order_price = round(order_price, price_precision)
-        print(f"USD Balance: {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
+        print(f"USD Balance (hard set initial): {usd_balance}, Order Price: {order_price}, Order Quantity: {order_quantity}")
         # Place the order
         action = "BUY"
         placed_order = roostoo_client.place_order(
@@ -361,50 +360,3 @@ def can_trade(
         else:
             opportunity.action = "N/A"
 
-# def check_minimum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> bool:
-#     """Check if minimum conditions after breaking through support are met"""
-#     # require a low pivot
-#     if pivot.type != "low":
-#         return False
-
-#     # ensure timestamps fall inside opportunity window when provided
-#     if getattr(opportunity, "start", None) is not None and pivot.timestamp < opportunity.start:
-#         return False
-
-
-#     # threshold: pivot must be lower than avg by the configured percentage
-#     try:
-#         pct = float(MINIMUM_BREAKTHROUGH_PERCENTAGE)
-#     except Exception:
-#         return False
-    
-#     avg = opportunity.support_line
-#     threshold = avg * (1.0 - pct)
-#     if pivot.price >= threshold:
-#         return False
-
-#     return True
-
-# def check_maximum_conditions(pivot: PivotPoint, opportunity: Opportunity) -> bool:
-#     """Check if maximum conditions after breaking out the previous high are met"""
-#     # require a high pivot
-#     if pivot.type != "high":
-#         return False
-
-#     # ensure timestamps fall inside opportunity window when provided
-#     if getattr(opportunity, "start", None) is not None and pivot.timestamp < opportunity.start:
-#         return False
-    
-
-#     # Check if price breaks above previous pivot high
-#     try:
-#         # Use the new `relative_pivot` field which represents the pivot
-#         # level used to determine breakouts. Require a positive value.
-#         rp = float(getattr(opportunity, "relative_pivot", 0.0))
-#         if rp <= 0:
-#             return False
-        
-#     except Exception:
-#         return False
-    
-#     return True

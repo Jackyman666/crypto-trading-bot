@@ -221,14 +221,17 @@ class SQLiteDataStore:
 
     def fetch_trades(self) -> List[Trade]:
         """
-        Fetch all Trade objects where `quantity > 0`.
+        Fetch all Trade objects where `quantity > 0` and profit_level contains at least one non-zero value.
 
         Returns:
             A list of Trade objects.
         """
         query = (
             "SELECT coin, order_id, quantity, stop_loss, profit_level, tp_order_ids, entry, timestamp "
-            "FROM trades WHERE quantity > 0 "
+            "FROM trades "
+            "WHERE quantity > 0 "
+            "AND profit_level != '[0.0, 0.0, 0.0]' "
+            "AND profit_level != '[0, 0, 0]' "
             "ORDER BY order_id ASC"
         )
 
